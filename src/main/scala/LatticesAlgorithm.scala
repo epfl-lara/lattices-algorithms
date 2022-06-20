@@ -44,9 +44,12 @@ class LatticesAlgorithm extends EquivalenceAndNormalForAlgorithm{
   }
 
 
-  override def isSame(formula1: Formula, formula2: Formula): Boolean = ???
+  override def isSame(formula1: Formula, formula2: Formula): Boolean =
+    val a = beta(negationNormalForm(formula1))
+    val b = beta(negationNormalForm(formula2))
+    latticesLEQ(a,b) & latticesLEQ(b, a)
 
-  override def normalForm(formula: Formula): NormalFormula = ???
+  override def normalForm(formula: Formula): Formula = beta(negationNormalForm(formula))
 
 
 }

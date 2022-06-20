@@ -36,6 +36,6 @@ object Datastructures {
 
   trait EquivalenceAndNormalForAlgorithm {
     def isSame(formula1:Formula, formula2:Formula):Boolean
-    def normalForm(formula:Formula):NormalFormula
+    def normalForm(formula:Formula):NormalFormula | Formula
   }
 }
