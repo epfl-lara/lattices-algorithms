@@ -1,3 +1,5 @@
+import scala.collection.mutable
+
 object Datastructures {
 
   sealed abstract class Formula {
@@ -38,4 +40,9 @@ object Datastructures {
     def isSame(formula1:Formula, formula2:Formula):Boolean
     def normalForm(formula:Formula):NormalFormula | Formula
   }
+
+  def memoize[I, O](f: I => O): I => O = new mutable.HashMap[I, O]() {
+    override def apply(key: I): O = getOrElseUpdate(key, f(key))
+  }
+
 }

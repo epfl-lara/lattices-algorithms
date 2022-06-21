@@ -1,4 +1,4 @@
-import Datastructures._
+import Datastructures.*
 object Main {
 
     def main(args: Array[String]):Unit = {
@@ -19,16 +19,37 @@ object Main {
             or(a, a) -> a
         )
 
+        val positiveTestCasesOLOnly: List[(Formula, Formula)] = List(
+            and(a, or(a, b)) -> a,
+            or(a, and(a, b)) -> a,
+        )
+
+
         val negativeTestCases: List[(Formula, Formula)] = List(
             a -> implies(a, x),
             a -> iff(a, x),
             and(a, or(x, y)) -> or(and(a, x), and(a, y)),
             or(a, and(x, y)) -> and(or(a, x), or(a, y)),
         )
-        println("Positive Test Cases")
+        println("Positive Test Cases OCBSL")
         positiveTestCases.foreach{ case (f,g) => println((new OcbslAlgorithm).isSame(f,g))}
-        println("Negative Test Cases")
+        println("Negative Test Cases OCBSL")
         negativeTestCases.foreach{ case (f,g) => println((new OcbslAlgorithm).isSame(f,g))}
+
+        println("Positive Test Cases OL")
+        positiveTestCases.foreach{ case (f,g) => println((new LatticesAlgorithm).isSame(f,g))}
+        println("Positive Test Cases OL but not OCBSL")
+        positiveTestCasesOLOnly.foreach{ case (f,g) => println((new LatticesAlgorithm).isSame(f,g))}
+        println("Negative Test Cases OL")
+        negativeTestCases.foreach{ case (f,g) => println((new LatticesAlgorithm).isSame(f,g))}
+
+        println("Lattices Test")
+        val alg = new LatticesAlgorithm()
+        val f = alg.NNFOr(List(alg.NNFVariable("x", true), alg.NNFVariable("y", false)))
+        //println(alg.isReduced(f))
+        //println(alg.beta(f))
+        println(alg.latticesLEQ(alg.NNFVariable("x", true), f))
+
 
     }
 
