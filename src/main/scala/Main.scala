@@ -1,68 +1,120 @@
 import Datastructures.*
+import FormulaGenerator.*
 object Main {
 
-    def main(args: Array[String]):Unit = {
+  def main(args: Array[String]): Unit = {
+    // checks correctness (semantic, with a boolean evaluation function) of both algo on random formulas
+    val n = 14 // number of variables
+    val rs = benchmark(200, 300, n)
+    rs.foreach { r =>
+      // printResult(r)
+      checkResult(r, n)
+    }
+  }
 
-        val positiveTestCases: List[(Formula, Formula)] = List(
-            and(a, b) -> and(b, a),
-            or(a, b) -> or(b, a),
-            iff(a, b) -> iff(b, a),
-            and(and(a, b), c) -> and(a, and(b, c)),
-            or(or(a, b), c) -> or(a, or(b, c)),
-            neg(a) -> neg(neg(neg(a))),
-            a -> neg(neg(neg(neg(a)))),
-            and(a, b) -> neg(or(neg(a), neg(b))),
-            or(a, b) -> neg(and(neg(a), neg(b))),
-            or(a, neg(a)) -> or(neg(a), neg(neg(a))),
-            and(a, neg(a)) -> and(neg(a), neg(neg(a))),
-            and(a, a) -> a,
-            or(a, a) -> a
-        )
+  def checkResult(r: Result, n: Int): Unit = {
+    val check1 = checkEquivalence(r.originalFormula, r.ocbslFormula, n)
+    val check2 = checkEquivalence(r.originalFormula, r.olFormula, n)
+    if !check1._1 then println(s"    check for OCBSL failed on res ${check1._2}<------------------------------------------------")
+    if !check2._1 then println(s"    check for OL failed on res ${check2._2} <------------------------------------------------")
+    if check1._1 && check2._1 then println("    checks are correct")
+  }
 
-        val positiveTestCasesOLOnly: List[(Formula, Formula)] = List(
-            and(a, or(a, b)) -> a,
-            or(a, and(a, b)) -> a,
-        )
+  def printResult(r: Result): Unit = {
+    println(s"Original formula ${r.originalFormula} of size ${r.originalSize}")
+    println(s"    OCBSL formula ${r.ocbslFormula} of size ${r.resultingSizeOCBSL}")
+    println(s"    OL formula ${r.olFormula} of size ${r.resultingSizeOL}")
+  }
+  def sparsePrintResult(r: Result): Unit = {
+    println(s"Original formula of size ${r.originalSize}")
+    println(s"    OCBSL formula of size ${r.resultingSizeOCBSL}")
+    println(s"    OL formula of size ${r.resultingSizeOL}")
+  }
+  def makeResult(f: Formula): Result = {
+    val r1 = OcbslAlgorithm.reducedForm(f)
+    val r2 = LatticesAlgorithm.reducedForm(f)
+    Result(f.size, r1.size, r2.size, f, r1, r2)
+  }
 
+  case class Result(originalSize: Int, resultingSizeOCBSL: Int, resultingSizeOL: Int, originalFormula: Formula, ocbslFormula: Formula, olFormula: Formula) {
+    def improvement: (Double, Double) = (resultingSizeOCBSL.toDouble / originalSize, resultingSizeOL.toDouble / originalSize)
+  }
 
-        val negativeTestCases: List[(Formula, Formula)] = List(
-            a -> implies(a, x),
-            a -> iff(a, x),
-            and(a, or(x, y)) -> or(and(a, x), and(a, y)),
-            or(a, and(x, y)) -> and(or(a, x), or(a, y)),
-        )
-        println("Positive Test Cases OCBSL")
-        positiveTestCases.foreach{ case (f,g) => println((new OcbslAlgorithm).isSame(f,g))}
-        println("Negative Test Cases OCBSL")
-        negativeTestCases.foreach{ case (f,g) => println((new OcbslAlgorithm).isSame(f,g))}
+  def benchmark(number: Int, size: Int, variables: Int): List[Result] = {
+    if number <= 0 then Nil
+    else {
+      val r = randomFormula(size, variables)
+      makeResult(r) :: benchmark(number - 1, size, variables)
+    }
+  }
 
-        println("Positive Test Cases OL")
-        positiveTestCases.foreach{ case (f,g) => println((new LatticesAlgorithm).isSame(f,g))}
-        println("Positive Test Cases OL but not OCBSL")
-        positiveTestCasesOLOnly.foreach{ case (f,g) => println((new LatticesAlgorithm).isSame(f,g))}
-        println("Negative Test Cases OL")
-        negativeTestCases.foreach{ case (f,g) => println((new LatticesAlgorithm).isSame(f,g))}
+  val a = Variable(0)
+  val b = Variable(1)
+  val c = Variable(2)
+  val d = Variable(3)
+  val e = Variable(4)
+  val f = Variable(5)
 
-        println("Lattices Test")
-        val alg = new LatticesAlgorithm()
-        val f = alg.NNFOr(List(alg.NNFVariable("x", true), alg.NNFVariable("y", false)))
-        //println(alg.isReduced(f))
-        //println(alg.beta(f))
-        println(alg.latticesLEQ(alg.NNFVariable("x", true), f))
+  def neg(f: Formula): Formula = Neg(f)
 
+  def and(args: List[Formula]): Formula = And(args)
+
+  def and(f: Formula, g: Formula): Formula = And(List(f, g))
+
+  def or(args: List[Formula]): Formula = Or(args)
+
+  def or(f: Formula, g: Formula): Formula = Or(List(f, g))
+
+  def iff(f: Formula, g: Formula): Formula = and(implies(f, g), implies(g, f))
+
+  def implies(f: Formula, g: Formula): Formula = neg(or(neg(f), g))
+
+  //
+  //
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  //                                                                                                                                               //
+  //   Further is the evaluation function for testing correctness. Don't read that code before creating one such function yourself independently!  //
+  //                                                                                                                                               //
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  def checkEquivalence(f1: Formula, f2: Formula, n: Int): (Boolean, String) = {
+    var seed = 0
+    val bound = scala.math.pow(2, n)
+    while (seed < bound) {
+      val assi = createAssignement(seed, n)
+      if !(eval(f1, assi) == eval(f2, assi)) then return (false, seed.toBinaryString)
+      seed += 1
 
     }
+    (true, seed.toBinaryString)
+  }
 
-    val a = Variable("a")
-    val b = Variable("b")
-    val c = Variable("c")
-    val x = Variable("x")
-    val y = Variable("y")
-    def neg(f:Formula):Formula = Neg(f)
-    def and(args:List[Formula]): Formula = And(args)
-    def and(f:Formula, g:Formula): Formula = And(List(f,g))
-    def or(args:List[Formula]): Formula = Or(args)
-    def or(f:Formula, g:Formula): Formula = Or(List(f,g))
-    def iff(f:Formula, g:Formula): Formula = and(implies(f,g), implies(g,f))
-    def implies(f:Formula, g:Formula): Formula = neg(or(neg(f),g))
+  def createAssignement(seed: Int, length: Int): Int => Boolean = {
+    val s = seed.toBinaryString.reverse.padTo(length, '0').reverse
+    v => s(v) == '1'
+  }
+
+  def eval(f: Formula, assignment: Int => Boolean): Boolean = f match
+    case Variable(id) => assignment(id)
+    case Neg(child) => !eval(child, assignment)
+    case Or(children) => children.exists(eval(_, assignment))
+    case And(children) => children.forall(eval(_, assignment))
+    case Literal(b) => b
 }

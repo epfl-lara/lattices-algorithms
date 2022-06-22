@@ -2,28 +2,24 @@ import Datastructures.*
 
 import scala.collection.mutable
 
-class LatticesAlgorithm extends EquivalenceAndNormalForAlgorithm{
+object LatticesAlgorithm extends EquivalenceAndNormalForAlgorithm {
+
   sealed abstract class NNFFormula {
     override def equals(obj: Any): Boolean = obj match
-      case o:AnyRef => eq(o)
+      case o: AnyRef => eq(o)
       case _ => super.equals(obj)
     val size: Int
-    var olNormalForm: Option[NormalFormula] = None
+
+    override def toString: String = Printer.pretty(this)
     // memoize the negation in a formula. Gain a factor n in space and time when
     // computing the nnf of all subformulas of a subformula compared to a functional approach.
+    var inverse: Option[NNFFormula] = None
+    var reducedForm: Option[NNFFormula] = None
+    var isReduced: Option[Boolean] = None
+    var lessThan: mutable.HashMap[NNFFormula, Boolean] = mutable.HashMap(this -> true)
 
-    //Goes back to original representation
-    var inverse:Option[NNFFormula] = None
-    var reducedForm:Option[NNFFormula] = None
-    var isReduced:Option[Boolean] = None
-    var lessThan:mutable.HashMap[NNFFormula, Boolean] = mutable.HashMap(this -> true)
-    lazy val toFormula:Formula =  this match
-      case NNFVariable(id, polarity) => if polarity then Variable(id) else Neg(Variable(id))
-      case NNFOr(children) => Or(children map (_.toFormula))
-      case NNFAnd(children) => And(children map (_.toFormula))
-      case NNFLiteral(b) => Literal(b)
   }
-  case class NNFVariable(id: String, polarity:Boolean) extends NNFFormula {
+  case class NNFVariable(id: Int, polarity: Boolean) extends NNFFormula {
     val size = 1
   }
   case class NNFOr(children: List[NNFFormula]) extends NNFFormula {
@@ -36,8 +32,19 @@ class LatticesAlgorithm extends EquivalenceAndNormalForAlgorithm{
     val size = 1
   }
 
+  /**
+   * Goes back to original representation
+   */
+  def toFormula(f: NNFFormula): Formula = f match
+    case NNFVariable(id, polarity) => if polarity then Variable(id) else Neg(Variable(id))
+    case NNFOr(children) => Or(children map (toFormula))
+    case NNFAnd(children) => And(children map (toFormula))
+    case NNFLiteral(b) => Literal(b)
 
-  def getInverse(f:NNFFormula):NNFFormula = {
+  /**
+   * compute and memoize the negation of a formula and all its subformula, and recursively for the negated version
+   */
+  def getInverse(f: NNFFormula): NNFFormula = {
     f.inverse match
       case Some(value) => value
       case None =>
@@ -51,7 +58,10 @@ class LatticesAlgorithm extends EquivalenceAndNormalForAlgorithm{
         second
   }
 
-  def negationNormalForm(f:Formula, positive:Boolean=true):NNFFormula = f match {
+  /**
+   * Transforms the regular Formula a representation into the one specific to the OL algorithm.
+   */
+  def negationNormalForm(f: Formula, positive: Boolean = true): NNFFormula = f match {
     case Variable(id) => if (positive) NNFVariable(id, true) else NNFVariable(id, false)
     case Neg(child) => negationNormalForm(child, !positive)
     case Or(children) => if positive then NNFOr(children.map(c => negationNormalForm(c, true))) else NNFAnd(children.map(c => negationNormalForm(c, false)))
@@ -65,7 +75,7 @@ class LatticesAlgorithm extends EquivalenceAndNormalForAlgorithm{
    * and on none of the original formulas. So isReduced is called on a set of n (sub)formulas (plus inverses)
    * So quadratic time.
    */
-  def beta(f:NNFFormula):NNFFormula = {
+  def beta(f: NNFFormula): NNFFormula = {
     f.reducedForm match
       case Some(value) => value
       case None =>
@@ -73,9 +83,7 @@ class LatticesAlgorithm extends EquivalenceAndNormalForAlgorithm{
           case _: (NNFVariable | NNFLiteral) => f
           case NNFOr(children) =>
             val r = NNFOr(children map beta)
-            if isReduced(r) then
-              r.reducedForm = Some(r)
-              r
+            if isReduced(r) then r
             else NNFLiteral(true)
           case NNFAnd(children) =>
             val r = NNFAnd(children map beta)
@@ -100,17 +108,16 @@ class LatticesAlgorithm extends EquivalenceAndNormalForAlgorithm{
       case None =>
         val a = f match
           case _: (NNFVariable | NNFLiteral) => true
-          case NNFAnd(children) => children.forall(c => isReduced(c) & !latticesLEQ(f, getInverse(c)))
           case NNFOr(children) => children.forall(c => isReduced(c) & !latticesLEQ(getInverse(c), f))
+          case NNFAnd(children) => children.forall(c => isReduced(c) & !latticesLEQ(f, getInverse(c)))
         f.isReduced = Some(a)
         a
   }
 
-
   /**
-   * Assumes the formula to be in negation normal form. Computes order wrt (non orthocomplemented) lattices.
+   * Computes order wrt (non orthocomplemented) lattices.
    * Computing all pairs of (sub)formulas of two large formulas take time at most n**2
-  */
+   */
   def latticesLEQ(formula1: NNFFormula, formula2: NNFFormula): Boolean = {
     formula1.lessThan.get(formula2) match
       case Some(value) => value
@@ -119,31 +126,36 @@ class LatticesAlgorithm extends EquivalenceAndNormalForAlgorithm{
           case (NNFLiteral(b1), NNFLiteral(b2)) => !b1 || b2
           case (NNFLiteral(b), _) => !b
           case (_, NNFLiteral(b)) => b
-          case (NNFVariable(id1, polarity1), NNFVariable(id2, polarity2)) =>id1 == id2 && polarity1 == polarity2
-          case (_, NNFAnd(children)) => children.forall(c => latticesLEQ(formula1, c))
-          case (NNFOr(children), _) => children.forall(c => latticesLEQ(c, formula2))
-          case (v: NNFVariable, NNFOr(children)) => children.exists(c => latticesLEQ(v, c))
-          case (NNFAnd(children), v: NNFVariable) => children.exists(c => latticesLEQ(c, v))
-          case (NNFAnd(children1), NNFOr(children2)) => children1.exists(c => latticesLEQ(c, formula2)) || children2.exists(c => latticesLEQ(formula2, c))
+          case (NNFVariable(id1, polarity1), NNFVariable(id2, polarity2)) =>
+            id1 == id2 && polarity1 == polarity2
+          case (_, NNFAnd(children)) =>
+            children.forall(c => latticesLEQ(formula1, c))
+          case (NNFOr(children), _) =>
+            children.forall(c => latticesLEQ(c, formula2))
+          case (v: NNFVariable, NNFOr(children)) =>
+            children.exists(c => latticesLEQ(v, c))
+          case (NNFAnd(children), v: NNFVariable) =>
+            children.exists(c => latticesLEQ(c, v))
+          case (NNFAnd(children1), NNFOr(children2)) =>
+            children1.exists(c => latticesLEQ(c, formula2)) || children2.exists(c => latticesLEQ(formula1, c))
         }
         formula1.lessThan.update(formula2, r)
         r
   }
 
-
   override def isSame(formula1: Formula, formula2: Formula): Boolean =
     val a = nNFnormalForm(formula1)
     val b = nNFnormalForm(formula2)
-    latticesLEQ(a,b) & latticesLEQ(b, a)
+    latticesLEQ(a, b) & latticesLEQ(b, a)
 
-  def nNFnormalForm(formula: Formula): NNFFormula = beta(negationNormalForm(formula))
+  def nNFnormalForm(formula: Formula): NNFFormula = {
+    beta(negationNormalForm(formula))
+  }
 
-  override def normalForm(formula: Formula): Formula = nNFnormalForm(formula).toFormula
-
+  override def reducedForm(formula: Formula): Formula = toFormula(nNFnormalForm(formula))
 
   def olLEQ(formula1: Formula, formula2: Formula): Boolean = {
     latticesLEQ(nNFnormalForm(formula1), nNFnormalForm(formula2))
   }
-
 
 }
