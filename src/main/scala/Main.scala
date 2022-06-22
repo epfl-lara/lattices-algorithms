@@ -4,11 +4,11 @@ object Main {
 
   def main(args: Array[String]): Unit = {
     // checks correctness (semantic, with a boolean evaluation function) of both algo on random formulas
-    val n = 14 // number of variables
-    val rs = benchmark(200, 300, n)
+    val n = 50 // number of variables
+    val rs = benchmark(50, 500, n)
     rs.foreach { r =>
-      // printResult(r)
-      checkResult(r, n)
+      sparsePrintResult(r)
+      //checkResult(r, n)
     }
   }
 
@@ -27,8 +27,8 @@ object Main {
   }
   def sparsePrintResult(r: Result): Unit = {
     println(s"Original formula of size ${r.originalSize}")
-    println(s"    OCBSL formula of size ${r.resultingSizeOCBSL}")
-    println(s"    OL formula of size ${r.resultingSizeOL}")
+    println(f"    OCBSL formula of size ${r.resultingSizeOCBSL} (ratio ${(r.resultingSizeOCBSL.toDouble/r.originalSize)}%1.3f )")
+    println(f"    OL formula of size ${r.resultingSizeOL} (ratio ${(r.resultingSizeOL.toDouble/r.originalSize)}%1.3f )")
   }
   def makeResult(f: Formula): Result = {
     val r1 = OcbslAlgorithm.reducedForm(f)
