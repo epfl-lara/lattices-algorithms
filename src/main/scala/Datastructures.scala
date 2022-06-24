@@ -25,7 +25,7 @@ object Datastructures {
     val size = 1
   }
 
-  trait EquivalenceAndNormalForAlgorithm {
+  trait EquivalenceAndNormalFormAlgorithm {
     def isSame(formula1: Formula, formula2: Formula): Boolean
     def reducedForm(formula: Formula): Formula
   }
@@ -41,5 +41,20 @@ object Datastructures {
     case And(children) => if positive then And(children.map(c => negationNormalForm(c))) else Or(children.map(c => negationNormalForm(c, false)))
     case Literal(b) => Literal(positive == b)
   }
+
+  def flatten(f:Formula): Formula = f match
+    case Or(children) =>
+      val nc: List[Formula] = children map flatten
+      Or(nc.flatMap {
+        case Or(children) => children
+        case c => List(c)
+      })
+    case And(children) =>
+      val nc: List[Formula] = children map flatten
+      And(nc.flatMap {
+        case And(children) => children
+        case c => List(c)
+      })
+    case _ => f
 
 }

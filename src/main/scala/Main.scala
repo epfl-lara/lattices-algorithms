@@ -4,12 +4,23 @@ object Main {
 
   def main(args: Array[String]): Unit = {
     // checks correctness (semantic, with a boolean evaluation function) of both algo on random formulas
-    val n = 50 // number of variables
-    val rs = benchmark(50, 500, n)
+
+/*
+    val f1 = or(neg(x3), neg(x3))
+
+    val r1 = makeResult(f1)
+    printResult(r1)
+    checkResult(r1, 6)
+
+*/
+
+
+    val n = 20 // number of variables
+    val rs = benchmark(10, 6000, n)
     rs.foreach { r =>
       sparsePrintResult(r)
-      //checkResult(r, n)
     }
+
   }
 
   def checkResult(r: Result, n: Int): Unit = {
@@ -18,6 +29,7 @@ object Main {
     if !check1._1 then println(s"    check for OCBSL failed on res ${check1._2}<------------------------------------------------")
     if !check2._1 then println(s"    check for OL failed on res ${check2._2} <------------------------------------------------")
     if check1._1 && check2._1 then println("    checks are correct")
+    else println(s"    ${Printer.prettyFull(r.originalFormula)}")
   }
 
   def printResult(r: Result): Unit = {
@@ -29,10 +41,15 @@ object Main {
     println(s"Original formula of size ${r.originalSize}")
     println(f"    OCBSL formula of size ${r.resultingSizeOCBSL} (ratio ${(r.resultingSizeOCBSL.toDouble/r.originalSize)}%1.3f )")
     println(f"    OL formula of size ${r.resultingSizeOL} (ratio ${(r.resultingSizeOL.toDouble/r.originalSize)}%1.3f )")
+
   }
+
+
+
+
   def makeResult(f: Formula): Result = {
     val r1 = OcbslAlgorithm.reducedForm(f)
-    val r2 = LatticesAlgorithm.reducedForm(f)
+    val r2 = OLAlgorithm.reducedForm(f)
     Result(f.size, r1.size, r2.size, f, r1, r2)
   }
 
@@ -55,15 +72,23 @@ object Main {
   val e = Variable(4)
   val f = Variable(5)
 
+  val x0 = Variable(0)
+  val x1 = Variable(1)
+  val x2 = Variable(2)
+  val x3 = Variable(3)
+  val x4 = Variable(4)
+  val x5 = Variable(5)
+
+
   def neg(f: Formula): Formula = Neg(f)
 
   def and(args: List[Formula]): Formula = And(args)
 
-  def and(f: Formula, g: Formula): Formula = And(List(f, g))
+  def and(f:Formula*): Formula = And(f.toList)
 
   def or(args: List[Formula]): Formula = Or(args)
 
-  def or(f: Formula, g: Formula): Formula = Or(List(f, g))
+  def or(f:Formula*): Formula = Or(f.toList)
 
   def iff(f: Formula, g: Formula): Formula = and(implies(f, g), implies(g, f))
 

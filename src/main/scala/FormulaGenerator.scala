@@ -14,11 +14,11 @@ object FormulaGenerator {
         val v = variables(rg.nextInt(variables.size))
         if rg.nextBoolean() then v else Neg(v)
       } else
-        val split = rg.nextInt(size - 2)
-        val i1 = single(split + 1)
-        val i2 = single(size - split - 1)
+        val split = rg.nextInt(size - 1)
+        val i1 = single(split+1)
+        val i2 = single(size - split-2)
         val f = if rg.nextBoolean() then Or(List(i1, i2)) else And(List(i1, i2))
-        f
+        negationNormalForm(f)
     }
     single(size)
   }
