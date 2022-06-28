@@ -3,23 +3,25 @@ import FormulaGenerator.*
 object Main {
 
   def main(args: Array[String]): Unit = {
-    // checks correctness (semantic, with a boolean evaluation function) of both algo on random formulas
-
-/*
-    val f1 = or(neg(x3), neg(x3))
-
-    val r1 = makeResult(f1)
-    printResult(r1)
-    checkResult(r1, 6)
-
-*/
+   val folder = "/home/sguillou/Desktop/aiger/"
 
 
-    val n = 20 // number of variables
-    val rs = benchmark(10, 6000, n)
+    val adderFormulas = AigerParser.getAigerFormulas(folder+"multiplier.aig")
+    println(totalNumberFormula)
+    val algos = Some((new OcbslAlgorithm, new OLAlgorithm))
+
+    adderFormulas.foreach { f =>
+      val r = makeResult(f, algos)
+      sparsePrintResult(r)
+    }
+
+    /*
+    println("before:Adder, after:bench")
+    val rs = benchmark(10, 1000, 50)
     rs.foreach { r =>
       sparsePrintResult(r)
     }
+    */
 
   }
 
@@ -39,23 +41,28 @@ object Main {
   }
   def sparsePrintResult(r: Result): Unit = {
     println(s"Original formula of size ${r.originalSize}")
-    println(f"    OCBSL formula of size ${r.resultingSizeOCBSL} (ratio ${(r.resultingSizeOCBSL.toDouble/r.originalSize)}%1.3f )")
-    println(f"    OL formula of size ${r.resultingSizeOL} (ratio ${(r.resultingSizeOL.toDouble/r.originalSize)}%1.3f )")
+    println(f"    OCBSL formula of size ${r.resultingSizeOCBSL}" +
+      f" (ratio ${BigDecimal(r.resultingSizeOCBSL)/BigDecimal(r.originalSize)}%1.10f )")
+    //println(f"    OL formula of size ${r.resultingSizeOL} (ratio ${BigDecimal(r.resultingSizeOL.toDouble)/BigDecimal(r.originalSize)}%1.8f )")
 
   }
 
 
 
 
-  def makeResult(f: Formula): Result = {
-    val r1 = OcbslAlgorithm.reducedForm(f)
-    val r2 = OLAlgorithm.reducedForm(f)
-    Result(f.size, r1.size, r2.size, f, r1, r2)
+  def makeResult(f: Formula, algos:Option[(OcbslAlgorithm, OLAlgorithm)]=None): Result = {
+    algos match
+      case Some(value) =>
+        val r1 = value._1.reducedForm(f)
+        //val r2 = value._2.reducedForm(f)
+        Result(f.size, r1.size, r1.size, f, r1, r1)
+      case None =>
+        val r1 = OcbslAlgorithm.reducedForm(f)
+        val r2 = OLAlgorithm.reducedForm(f)
+        Result(f.size, r1.size, r2.size, f, r1, r2)
   }
 
-  case class Result(originalSize: Int, resultingSizeOCBSL: Int, resultingSizeOL: Int, originalFormula: Formula, ocbslFormula: Formula, olFormula: Formula) {
-    def improvement: (Double, Double) = (resultingSizeOCBSL.toDouble / originalSize, resultingSizeOL.toDouble / originalSize)
-  }
+  case class Result(originalSize: BigInt, resultingSizeOCBSL: BigInt, resultingSizeOL: BigInt, originalFormula: Formula, ocbslFormula: Formula, olFormula: Formula)
 
   def benchmark(number: Int, size: Int, variables: Int): List[Result] = {
     if number <= 0 then Nil

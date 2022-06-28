@@ -1,11 +1,21 @@
+import OLAlgorithm.PolarFormula
+import OcbslAlgorithm.NoAndFormula
 import jdk.nashorn.internal.ir.Assignment
 
 import scala.collection.mutable
 
 object Datastructures {
 
+  var totalNumberFormula : Int = 0
   sealed abstract class Formula {
-    val size: Int
+    val size: BigInt
+    totalNumberFormula+=1
+
+    var noAndFormulaP:Option[NoAndFormula] = None
+    var noAndFormulaN:Option[NoAndFormula] = None
+
+    var polarFormulaP:Option[PolarFormula] = None
+    var polarFormulaN:Option[PolarFormula] = None
 
     override def toString: String = Printer.pretty(this)
   }
@@ -13,14 +23,22 @@ object Datastructures {
     val size = 1
   }
   case class Neg(child: Formula) extends Formula {
-    val size: Int = child.size
+    val size: BigInt = child.size
   }
   case class Or(children: List[Formula]) extends Formula {
-    val size: Int = (children map (_.size)).foldLeft(1) { case (a, b) => a + b }
+    val size: BigInt = {
+      val fold = (children map (_.size)).foldLeft(1:BigInt) { case (a, b) => (a + b) }
+      if children.exists(_.isInstanceOf[Or]) then fold else fold+1
+    }
   }
   case class And(children: List[Formula]) extends Formula {
-    val size: Int = (children map (_.size)).foldLeft(1) { case (a, b) => a + b }
+    val size: BigInt = {
+      val fold = (children map (_.size)).foldLeft(1:BigInt) { case (a, b) => (a + b) }
+      if children.exists(_.isInstanceOf[And]) then fold else fold+1
+    }
   }
+
+
   case class Literal(b: Boolean) extends Formula {
     val size = 1
   }
