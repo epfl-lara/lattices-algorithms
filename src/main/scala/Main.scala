@@ -1,76 +1,36 @@
 import Datastructures.*
 import FormulaGenerator.*
+import Benchmark.*
 object Main {
 
   def main(args: Array[String]): Unit = {
-   val folder = "/home/sguillou/Desktop/aiger/"
+    val folder = "/home/sguillou/Desktop/aiger/"
 
 
-    val adderFormulas = AigerParser.getAigerFormulas(folder+"multiplier.aig")
-    println(totalNumberFormula)
+    //epflAigerBenchmark(folder)
+
+/*
+    val adderFormulas = AigerParser.getAigerFormulas(folder+"div.aig")
     val algos = Some((new OcbslAlgorithm, new OLAlgorithm))
-
     adderFormulas.foreach { f =>
-      val r = makeResult(f, algos)
+      println(s"formula size: ${bigIntRepr(circuitSize(f))}")
+      println(s"formula depth: ${bigIntRepr(f.depth)}")
+
+      val r = makeResult(f)
       sparsePrintResult(r)
     }
-
-    /*
-    println("before:Adder, after:bench")
-    val rs = benchmark(10, 1000, 50)
+*/
+    val rs = benchmark(20, 5000, 100)
     rs.foreach { r =>
+
       sparsePrintResult(r)
     }
-    */
 
-  }
-
-  def checkResult(r: Result, n: Int): Unit = {
-    val check1 = checkEquivalence(r.originalFormula, r.ocbslFormula, n)
-    val check2 = checkEquivalence(r.originalFormula, r.olFormula, n)
-    if !check1._1 then println(s"    check for OCBSL failed on res ${check1._2}<------------------------------------------------")
-    if !check2._1 then println(s"    check for OL failed on res ${check2._2} <------------------------------------------------")
-    if check1._1 && check2._1 then println("    checks are correct")
-    else println(s"    ${Printer.prettyFull(r.originalFormula)}")
-  }
-
-  def printResult(r: Result): Unit = {
-    println(s"Original formula ${r.originalFormula} of size ${r.originalSize}")
-    println(s"    OCBSL formula ${r.ocbslFormula} of size ${r.resultingSizeOCBSL}")
-    println(s"    OL formula ${r.olFormula} of size ${r.resultingSizeOL}")
-  }
-  def sparsePrintResult(r: Result): Unit = {
-    println(s"Original formula of size ${r.originalSize}")
-    println(f"    OCBSL formula of size ${r.resultingSizeOCBSL}" +
-      f" (ratio ${BigDecimal(r.resultingSizeOCBSL)/BigDecimal(r.originalSize)}%1.10f )")
-    //println(f"    OL formula of size ${r.resultingSizeOL} (ratio ${BigDecimal(r.resultingSizeOL.toDouble)/BigDecimal(r.originalSize)}%1.8f )")
+// a /\ x ==> a /\ x[1/a]
 
   }
 
 
-
-
-  def makeResult(f: Formula, algos:Option[(OcbslAlgorithm, OLAlgorithm)]=None): Result = {
-    algos match
-      case Some(value) =>
-        val r1 = value._1.reducedForm(f)
-        //val r2 = value._2.reducedForm(f)
-        Result(f.size, r1.size, r1.size, f, r1, r1)
-      case None =>
-        val r1 = OcbslAlgorithm.reducedForm(f)
-        val r2 = OLAlgorithm.reducedForm(f)
-        Result(f.size, r1.size, r2.size, f, r1, r2)
-  }
-
-  case class Result(originalSize: BigInt, resultingSizeOCBSL: BigInt, resultingSizeOL: BigInt, originalFormula: Formula, ocbslFormula: Formula, olFormula: Formula)
-
-  def benchmark(number: Int, size: Int, variables: Int): List[Result] = {
-    if number <= 0 then Nil
-    else {
-      val r = randomFormula(size, variables)
-      makeResult(r) :: benchmark(number - 1, size, variables)
-    }
-  }
 
   val a = Variable(0)
   val b = Variable(1)
@@ -101,52 +61,5 @@ object Main {
 
   def implies(f: Formula, g: Formula): Formula = neg(or(neg(f), g))
 
-  //
-  //
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  //                                                                                                                                               //
-  //   Further is the evaluation function for testing correctness. Don't read that code before creating one such function yourself independently!  //
-  //                                                                                                                                               //
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  def checkEquivalence(f1: Formula, f2: Formula, n: Int): (Boolean, String) = {
-    var seed = 0
-    val bound = scala.math.pow(2, n)
-    while (seed < bound) {
-      val assi = createAssignement(seed, n)
-      if !(eval(f1, assi) == eval(f2, assi)) then return (false, seed.toBinaryString)
-      seed += 1
 
-    }
-    (true, seed.toBinaryString)
-  }
-
-  def createAssignement(seed: Int, length: Int): Int => Boolean = {
-    val s = seed.toBinaryString.reverse.padTo(length, '0').reverse
-    v => s(v) == '1'
-  }
-
-  def eval(f: Formula, assignment: Int => Boolean): Boolean = f match
-    case Variable(id) => assignment(id)
-    case Neg(child) => !eval(child, assignment)
-    case Or(children) => children.exists(eval(_, assignment))
-    case And(children) => children.forall(eval(_, assignment))
-    case Literal(b) => b
 }

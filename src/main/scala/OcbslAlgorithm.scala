@@ -38,7 +38,7 @@ class OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
     var k = 0
     while (k < negatives.size) {
       negatives(k) match {
-        case NOr(gdChildren, c) =>
+        case NAnd(gdChildren, c) =>
           if (gdChildren.forall(sf => children_codes.contains(sf.code))) return true
         case _ => ()
       }
@@ -53,81 +53,81 @@ class OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   }
 
   /**
-   * Assumes the formula to be free of And. Apply removeAnd first.
+   * Assumes the formula to be free of And. Apply removeOr first.
    */
-  def OCBSLCode(phi: NoAndFormula): Int = {
+  def OCBSLCode(phi: NoOrFormula): Int = {
     if (phi.ocbslNormalForm.nonEmpty) return phi.ocbslNormalForm.get.code
     val L = pDisj(phi, Nil)
     val L2 = L zip (L map (_.code))
-    val L3 = L2.sortBy(_._2).distinctBy(_._2).filterNot(_._2 == 0) // not most efficient on sorted list but no big deal for now
+    val L3 = L2.sortBy(_._2).distinctBy(_._2).filterNot(_._2 == 1) // not most efficient on sorted list but no big deal for now
     if (L3.isEmpty) {
-      phi.ocbslNormalForm = Some(NLiteral(false))
+      phi.ocbslNormalForm = Some(NLiteral(true))
     } else if (L3.length == 1) {
       phi.ocbslNormalForm = Some(L3.head._1)
-    } else if (L3.exists(_._2 == 1) || checkForContradiction(L3)) {
-      phi.ocbslNormalForm = Some(NLiteral(true))
+    } else if (L3.exists(_._2 == 0) || checkForContradiction(L3)) {
+      phi.ocbslNormalForm = Some(NLiteral(false))
     } else {
-      phi.ocbslNormalForm = Some(NOr(L3.map(_._1), updateCodesSig(("or", L3.map(_._2)))))
+      phi.ocbslNormalForm = Some(NAnd(L3.map(_._1), updateCodesSig(("or", L3.map(_._2)))))
     }
     phi.ocbslNormalForm.get.code
   }
 
-  def pDisj(phi: NoAndFormula, acc: List[NormalFormula]): List[NormalFormula] = {
+  def pDisj(phi: NoOrFormula, acc: List[NormalFormula]): List[NormalFormula] = {
     if (phi.ocbslNormalForm.nonEmpty){
       return pDisjNormal(phi.ocbslNormalForm.get, acc)
     }
     val r: List[NormalFormula] = phi match {
-      case NoAndVariable(id) =>
+      case NoOrVariable(id) =>
         val lab = "pred_" + id
         phi.ocbslNormalForm = Some(NVariable(id, updateCodesSig((lab, Nil))))
         phi.ocbslNormalForm.get :: acc
-      case NoAndNeg(child) => pNeg(child, phi, acc)
-      case NoAndOr(children) => children.foldLeft(acc)((p, a) => pDisj(a, p))
-      case NoAndLiteral(true) =>
+      case NoOrNeg(child) => pNeg(child, phi, acc)
+      case NoOrAnd(children) => children.foldLeft(acc)((p, a) => pDisj(a, p))
+      case NoOrLiteral(true) =>
         phi.ocbslNormalForm = Some(NLiteral(true))
         phi.ocbslNormalForm.get :: acc
-      case NoAndLiteral(false) =>
+      case NoOrLiteral(false) =>
         phi.ocbslNormalForm = Some(NLiteral(false))
         phi.ocbslNormalForm.get :: acc
     }
     r
   }
 
-  def pNeg(phi: NoAndFormula, parent: NoAndFormula, acc: List[NormalFormula]): List[NormalFormula] = {
+  def pNeg(phi: NoOrFormula, parent: NoOrFormula, acc: List[NormalFormula]): List[NormalFormula] = {
     if (phi.ocbslNormalForm.nonEmpty){
       return pNegNormal(phi.ocbslNormalForm.get, parent, acc)
     }
     val r: List[NormalFormula] = phi match {
-      case NoAndVariable(id) =>
+      case NoOrVariable(id) =>
         val lab = "pred_" + id
         phi.ocbslNormalForm = Some(NVariable(id, updateCodesSig((lab, Nil))))
         parent.ocbslNormalForm = Some(NNeg(phi.ocbslNormalForm.get, updateCodesSig(("neg", List(phi.ocbslNormalForm.get.code)))))
         parent.ocbslNormalForm.get :: acc
-      case NoAndNeg(child) => pDisj(child, acc)
-      case NoAndLiteral(true) =>
+      case NoOrNeg(child) => pDisj(child, acc)
+      case NoOrLiteral(true) =>
         parent.ocbslNormalForm = Some(NLiteral(false))
         parent.ocbslNormalForm.get :: acc
-      case NoAndLiteral(false) =>
+      case NoOrLiteral(false) =>
         parent.ocbslNormalForm = Some(NLiteral(true))
         parent.ocbslNormalForm.get :: acc
-      case NoAndOr(children) =>
+      case NoOrAnd(children) =>
         val T = children.sortBy(_.size)
         val r1 = T.tail.foldLeft(List[NormalFormula]())((p, a) => pDisj(a, p))
         val r2 = r1 zip (r1 map (_.code))
-        val r3 = r2.sortBy(_._2).distinctBy(_._2).filterNot(_._2 == 0)
+        val r3 = r2.sortBy(_._2).distinctBy(_._2).filterNot(_._2 == 1)
         if (r3.isEmpty) pNeg(T.head, parent, acc)
         else {
           val s1 = pDisj(T.head, r1)
           val s2 = s1 zip (s1 map (_.code))
-          val s3 = s2.sortBy(_._2).distinctBy(_._2).filterNot(_._2 == 0)
-          if (s3.exists(_._2 == 1) || checkForContradiction(s3)) {
-            phi.ocbslNormalForm = Some(NLiteral(true))
-            parent.ocbslNormalForm = Some(NLiteral(false))
+          val s3 = s2.sortBy(_._2).distinctBy(_._2).filterNot(_._2 == 1)
+          if (s3.exists(_._2 == 0) || checkForContradiction(s3)) {
+            phi.ocbslNormalForm = Some(NLiteral(false))
+            parent.ocbslNormalForm = Some(NLiteral(true))
             parent.ocbslNormalForm.get :: acc
           } else if (s3.length == 1) {
             pNegNormal(s3.head._1, parent, acc)
           } else {
-            phi.ocbslNormalForm = Some(NOr(s3.map(_._1), updateCodesSig(("or", s3.map(_._2)))))
+            phi.ocbslNormalForm = Some(NAnd(s3.map(_._1), updateCodesSig(("or", s3.map(_._2)))))
             parent.ocbslNormalForm = Some(NNeg(phi.ocbslNormalForm.get, updateCodesSig(("neg", List(phi.ocbslNormalForm.get.code)))))
             parent.ocbslNormalForm.get :: acc
           }
@@ -137,11 +137,11 @@ class OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   }
 
   def pDisjNormal(f: NormalFormula, acc: List[NormalFormula]): List[NormalFormula] = f match {
-    case NOr(children, c) => children ++ acc
+    case NAnd(children, c) => children ++ acc
     case _ => f :: acc
   }
 
-  def pNegNormal(f: NormalFormula, parent: NoAndFormula, acc: List[NormalFormula]): List[NormalFormula] = f match {
+  def pNegNormal(f: NormalFormula, parent: NoOrFormula, acc: List[NormalFormula]): List[NormalFormula] = f match {
     case NNeg(child, c) =>
       pDisjNormal(child, acc)
     case _ =>
@@ -149,16 +149,16 @@ class OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
       parent.ocbslNormalForm.get :: acc
   }
 
-  def checkEquivalence(formula1: NoAndFormula, formula2: NoAndFormula): Boolean = {
+  def checkEquivalence(formula1: NoOrFormula, formula2: NoOrFormula): Boolean = {
     getCode(formula1) == getCode(formula2)
   }
 
-  def getCode(formula: NoAndFormula): Int = OCBSLCode(formula)
+  def getCode(formula: NoOrFormula): Int = OCBSLCode(formula)
 
-  override def isSame(formula1: Formula, formula2: Formula): Boolean = checkEquivalence(removeAnd(formula1), removeAnd(formula2))
+  override def isSame(formula1: Formula, formula2: Formula): Boolean = checkEquivalence(removeOr(formula1), removeOr(formula2))
 
   override def reducedForm(formula: Formula): Formula = {
-    val f = removeAnd(formula)
+    val f = removeOr(formula)
     getCode(f)
     val r = toFormula(f.ocbslNormalForm.get)
     r
@@ -171,23 +171,23 @@ object OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   codesSig.update(("zero", Nil), 0)
   codesSig.update(("one", Nil), 1)
 
-  var totNoAndFormula:Int = 0
-  sealed abstract class NoAndFormula {
+  var totNoOrFormula:Int = 0
+  sealed abstract class NoOrFormula {
     val size: BigInt
     var ocbslNormalForm: Option[NormalFormula] = None
     override def toString: String = Printer.pretty(this)
-    totNoAndFormula+=1
+    totNoOrFormula+=1
   }
-  case class NoAndVariable(id: Int) extends NoAndFormula {
+  case class NoOrVariable(id: Int) extends NoOrFormula {
     val size = 1
   }
-  case class NoAndNeg(child: NoAndFormula) extends NoAndFormula {
+  case class NoOrNeg(child: NoOrFormula) extends NoOrFormula {
     val size = child.size + (1:BigInt)
   }
-  case class NoAndOr(children: List[NoAndFormula]) extends NoAndFormula {
+  case class NoOrAnd(children: List[NoOrFormula]) extends NoOrFormula {
     val size = (children map (_.size)).foldLeft(1:BigInt) { case (a, b) => a + b }
   }
-  case class NoAndLiteral(b: Boolean) extends NoAndFormula {
+  case class NoOrLiteral(b: Boolean) extends NoOrFormula {
     val size = 1
   }
 
@@ -196,54 +196,67 @@ object OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
     val code: Int
     var formulaP: Option[Formula] = None
     var formulaN: Option[Formula] = None
+    var formulaAIG: Option[Formula] = None
     override def toString: String = Printer.pretty(this)
     totNormalFormula+=1
   }
   case class NVariable(id: Int, code: Int) extends NormalFormula
   case class NNeg(child: NormalFormula, code: Int) extends NormalFormula
-  case class NOr(children: List[NormalFormula], code: Int) extends NormalFormula
+  case class NAnd(children: List[NormalFormula], code: Int) extends NormalFormula
   case class NLiteral(b: Boolean) extends NormalFormula {
     val code: Int = if (b) 1 else 0
   }
 
+  def toFormula(formula: NormalFormula):Formula = toFormulaNNF(formula)
   /**
    * Puts back in regular formula syntax, and performs negation normal form to produce shorter version.
    */
-  def toFormula(f: NormalFormula, positive: Boolean = true): Formula =
+  def toFormulaNNF(f: NormalFormula, positive: Boolean = true): Formula =
     if positive & f.formulaP.isDefined then return f.formulaP.get
     if !positive & f.formulaN.isDefined then return f.formulaN.get
     val r = f match
       case NVariable(id, code) => if (positive) Variable(id) else Neg(Variable(id))
-      case NNeg(child, code) => toFormula(child, !positive)
-      case NOr(children, code) => if positive then Or(children.map(c => toFormula(c, true))) else And(children.map(c => toFormula(c, false)))
+      case NNeg(child, code) => toFormulaNNF(child, !positive)
+      case NAnd(children, code) => if positive then And(children.map(c => toFormulaNNF(c, true))) else Or(children.map(c => toFormulaNNF(c, false)))
       case NLiteral(b) => Literal(positive == b)
     if positive then f.formulaP = Some(r)
     else  f.formulaN = Some(r)
     r
 
+  def toFormulaAIG(f: NormalFormula): Formula =
+    if f.formulaAIG.isDefined then return f.formulaAIG.get
+    val r = f match
+      case NVariable(id, code) => Variable(id)
+      case NNeg(child, code) => Neg(toFormulaAIG(child))
+      case NAnd(children, code) => And(children.map(c => toFormulaAIG(c)))
+      case NLiteral(b) => Literal(b)
+    f.formulaAIG = Some(r)
+    r
 
-  def checkEquivalence(formula1: NoAndFormula, formula2: NoAndFormula): Boolean = (new OcbslAlgorithm).checkEquivalence(formula1, formula2)
 
-  def getCode(formula: NoAndFormula): Int = (new OcbslAlgorithm).getCode(formula)
+  def checkEquivalence(formula1: NoOrFormula, formula2: NoOrFormula): Boolean = (new OcbslAlgorithm).checkEquivalence(formula1, formula2)
+
+  def getCode(formula: NoOrFormula): Int = (new OcbslAlgorithm).getCode(formula)
 
   override def isSame(formula1: Formula, formula2: Formula): Boolean = (new OcbslAlgorithm).isSame(formula1, formula2)
 
   override def reducedForm(formula: Formula): Formula = (new OcbslAlgorithm).reducedForm(formula)
 
 
-  def removeAnd(f: Formula, positive: Boolean = true): NoAndFormula =
-    if positive & f.noAndFormulaP.isDefined then return f.noAndFormulaP.get
-    if !positive & f.noAndFormulaN.isDefined then return f.noAndFormulaN.get
-      val r = f match {
-        case Variable(id) => if positive then NoAndVariable(id) else NoAndNeg(NoAndVariable(id))
-        case Neg(child) => removeAnd(child, !positive)
-        case Or(children) =>
-          if positive then NoAndOr(children.map(c => removeAnd(c, true))) else NoAndNeg(NoAndOr(children.map(c => removeAnd(c, true))))
-        case And(children) =>
-          if positive then NoAndNeg(NoAndOr(children.map(c => removeAnd(c, false)))) else NoAndOr(children.map(c => removeAnd(c, false)))
-        case Literal(b) => NoAndLiteral(b == positive)
-      }
-    if positive then f.noAndFormulaP = Some(r)
-    else f.noAndFormulaN = Some(r)
+  def removeOr(f: Formula, positive: Boolean = true): NoOrFormula =
+    if positive & f.noOrFormulaP.isDefined then return f.noOrFormulaP.get
+    if !positive & f.noOrFormulaN.isDefined then return f.noOrFormulaN.get
+    val r = f match {
+      case Variable(id) => if positive then NoOrVariable(id) else NoOrNeg(NoOrVariable(id))
+      case Neg(child) => removeOr(child, !positive)
+      case Or(children) =>
+        if positive then NoOrNeg(NoOrAnd(children.map(c => removeOr(c, false)))) else NoOrAnd(children.map(c => removeOr(c, false)))
+      case And(children) =>
+        if positive then NoOrAnd(children.map(c => removeOr(c, true))) else NoOrNeg(NoOrAnd(children.map(c => removeOr(c, true))))
+      case Literal(b) => NoOrLiteral(b == positive)
+    }
+    if positive then f.noOrFormulaP = Some(r)
+    else f.noOrFormulaN = Some(r)
     r
+
 }

@@ -17,6 +17,8 @@ object AigerParser {
     }
 
     val table:mutable.HashMap[Int, Formula] = mutable.HashMap()
+    table.update(0, Literal(false))
+    table.update(1, Literal(true))
 
     for (i <- 1 to header.I){
       val v = Variable(2*i)

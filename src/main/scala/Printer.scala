@@ -18,14 +18,14 @@ object Printer {
   def pretty(f: OcbslAlgorithm.NormalFormula): String = f match
     case OcbslAlgorithm.NVariable(id, code) => s"x$id"
     case OcbslAlgorithm.NNeg(child, code) => s"!${pretty(child)}"
-    case OcbslAlgorithm.NOr(children, code) => if children.size == 2 then s"(${pretty(children(0))} ∨ ${pretty(children(1))})" else s"or(${children.map(pretty).mkString(", ")})"
+    case OcbslAlgorithm.NAnd(children, code) => if children.size == 2 then s"(${pretty(children(0))} ∨ ${pretty(children(1))})" else s"or(${children.map(pretty).mkString(", ")})"
     case OcbslAlgorithm.NLiteral(b) => if b then "1" else "0"
 
-  def pretty(f: OcbslAlgorithm.NoAndFormula): String = f match
-    case OcbslAlgorithm.NoAndVariable(id) => s"x$id"
-    case OcbslAlgorithm.NoAndNeg(child) => s"!${pretty(child)}"
-    case OcbslAlgorithm.NoAndOr(children) => if children.size == 2 then s"(${pretty(children(0))} ∨ ${pretty(children(1))})" else s"or(${children.map(pretty).mkString(", ")})"
-    case OcbslAlgorithm.NoAndLiteral(b) => if b then "1" else "0"
+  def pretty(f: OcbslAlgorithm.NoOrFormula): String = f match
+    case OcbslAlgorithm.NoOrVariable(id) => s"x$id"
+    case OcbslAlgorithm.NoOrNeg(child) => s"!${pretty(child)}"
+    case OcbslAlgorithm.NoOrAnd(children) => if children.size == 2 then s"(${pretty(children(0))} ∨ ${pretty(children(1))})" else s"or(${children.map(pretty).mkString(", ")})"
+    case OcbslAlgorithm.NoOrLiteral(b) => if b then "1" else "0"
 
   def pretty(f: OLAlgorithm.NormalPFormula): String = f match
     case OLAlgorithm.NPVariable(id, polarity) => if polarity then s"x$id" else s"!x$id"

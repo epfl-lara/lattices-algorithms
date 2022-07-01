@@ -7,13 +7,12 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
 
   var invTot = 0
   var invTotTrue = 0
+  val v = NPVariable(-5, true)
   def getInverse(f: NormalPFormula): NormalPFormula = {
-    if invTot%10000 == 0 then println(s"invTot: $invTot")
     invTot+=1
     f.inverse match
       case Some(value) => value
       case None =>
-        if invTotTrue%10000 == 0 then println(s"invTotTrue: $invTotTrue")
         invTotTrue+=1
         val second = f match
           case NPVariable(id, polarity) => NPVariable(id, !polarity)
@@ -28,13 +27,15 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   var leqTotTrue = 0
   def latticesLEQ(formula1: NormalPFormula, formula2: NormalPFormula): Boolean =
     leqTot+=1
-    if leqTot%10000 == 0 then println(s"leqTot: $leqTot")
-    formula1.lessThan.get(formula2) match
+
+    formula1.lessThan.get(formula2.uniqueKey) match
       case Some(value) => value
       case None =>
-        if leqTotTrue%10000 == 0 then println(s"leqTotTrue: $leqTotTrue, totNormalPFormula: $totNormalPFormula")
+
         leqTotTrue+=1
         val r = (formula1, formula2) match
+          case (_, NPVariable(-5, true)) => false
+          case (NPVariable(-5, true), _) => false
           case (NPLiteral(b1), NPLiteral(b2)) => !b1 || b2
           case (NPLiteral(b), _) => !b
           case (_, NPLiteral(b)) => b
@@ -50,7 +51,7 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
             children.exists(c => latticesLEQ(getInverse(c), v))
           case (NPOr(children1, false), NPOr(children2, true)) =>
             children1.exists(c => latticesLEQ(getInverse(c), formula2)) || children2.exists(c => latticesLEQ(formula1, c))
-        formula1.lessThan.update(formula2, r)
+        formula1.lessThan.update(formula2.uniqueKey, r)
         r
 
   def simplify(children:List[NormalPFormula], polarity:Boolean): NormalPFormula = {
@@ -61,6 +62,7 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
         case _ => remaining = i::remaining
     }
     var accepted: List[NormalPFormula] = Nil
+
     while remaining.nonEmpty do {
       val current = remaining.head
       remaining = remaining.tail
@@ -74,18 +76,20 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
     else NPOr(accepted, polarity)
   }
 
-  def checkForContradiction(f:NPOr): Boolean = f match
-    case NPOr(children, true) =>
-      val shadowChildren = children map getInverse
-      shadowChildren.exists(sc => latticesLEQ(sc, f))
-    case NPOr(children, false) =>
-      children.exists(c => latticesLEQ(f, c))
-
+  def checkForContradiction(f:NPOr): Boolean = {
+    f match
+      case NPOr(children, true) =>
+        val shadowChildren = children map getInverse
+        shadowChildren.exists(sc => latticesLEQ(sc, f))
+      case NPOr(children, false) =>
+        children.exists(c => latticesLEQ(f, c))
+  }
 
   var norTot = 0
   def nPnormalForm(formula:PolarFormula):NormalPFormula = {
     norTot+=1
-    if norTot%100 == 0 then println(norTot)
+    //if norTot%100 == 0 then println(s"norTot: $norTot")
+    //else if norTot> 4800 && norTot%10 == 0 then println(s"norTot: $norTot")
     formula.polarNormalForm match
       case Some(value) => value
       case None =>
@@ -93,9 +97,7 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
           case PolarVariable(id, polarity) => NPVariable(id, polarity)
           case PolarOr(children, polarity) =>
             val newChildren = children map nPnormalForm
-            //println(s"before simp: $newChildren, polarity: $polarity")
             val simp = simplify(newChildren, polarity)
-            //println(s"after simp: $simp")
             simp match
               case disj: NPOr if checkForContradiction(disj) => NPLiteral(polarity)
               case _ => simp
@@ -104,22 +106,17 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
         r
   }
 
-
   def checkEquivalence(formula1: PolarFormula, formula2: PolarFormula): Boolean =
     val a = nPnormalForm(formula1)
     val b = nPnormalForm(formula2)
     latticesLEQ(a, b) & latticesLEQ(b, a)
-
-  override def isSame(formula1: Formula, formula2: Formula): Boolean = checkEquivalence(polarize(formula1), polarize(formula2))
+  override def isSame(formula1: Formula, formula2: Formula): Boolean = false //checkEquivalence(polarize(formula1), polarize(formula2))
 
 
   override def reducedForm(formula: Formula): Formula =
     val p = polarize(formula)
-    println(s"p computed, totPolarFormula : $totPolarFormula")
     val nf = nPnormalForm(p)
-    println("nf computed")
     val res = toFormula(nf)
-    println("res computed")
     val n = p.size
     val squared = n*n
     //println(s"     Stats: Polarized formula of size $n (squared: $squared)")
@@ -148,13 +145,19 @@ object OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
 
   var totNormalPFormula = 0
   sealed abstract class NormalPFormula {
+    totNormalPFormula+=1
+    val uniqueKey:Int = totNormalPFormula
     //val code: Int
     var formulaP: Option[Formula] = None
     var formulaN: Option[Formula] = None
     override def toString: String = Printer.pretty(this)
     var inverse: Option[NormalPFormula] = None
-    val lessThan: mutable.HashMap[NormalPFormula, Boolean] = mutable.HashMap(this -> true)
-    totNormalPFormula+=1
+    val lessThan: mutable.HashMap[Int, Boolean] = mutable.HashMap(uniqueKey -> true)
+
+
+    override def equals(obj: Any): Boolean = obj match
+      case f: NormalPFormula => eq(f)
+      case _ => super.equals(obj)
   }
   case class NPVariable(id: Int, polarity:Boolean) extends NormalPFormula
   case class NPOr(children: List[NormalPFormula], polarity:Boolean) extends NormalPFormula
@@ -175,7 +178,7 @@ object OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
     r
 
 
-  def checkEquivalence(formula1: PolarFormula, formula2: PolarFormula): Boolean = (new OLAlgorithm).checkEquivalence(formula1, formula2)
+  //def checkEquivalence(formula1: PolarFormula, formula2: PolarFormula): Boolean = (new OLAlgorithm).checkEquivalence(formula1, formula2)
 
   override def isSame(formula1: Formula, formula2: Formula): Boolean = (new OLAlgorithm).isSame(formula1, formula2)
 
