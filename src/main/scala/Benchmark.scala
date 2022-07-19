@@ -99,13 +99,13 @@ object Benchmark {
       case Some(value) =>
         val r1 = value._1.reducedForm(f)
         val r2 = value._2.reducedForm(f)
-        //Result(circuitSize(f), circuitSize(r1), circuitSize(r2), f, r1, r2)
-        Result(f.size, r1.size, r2.size, f, r1, r2)
+        Result(f.circuitSize, r1.circuitSize, r2.circuitSize, f, r1, r2)
+        //Result(f.size, r1.size, r2.size, f, r1, r2)
       case None =>
         val r1 = OcbslAlgorithm.reducedForm(f)
         val r2 = OLAlgorithm.reducedForm(f)
-        //Result(circuitSize(f), circuitSize(r1), circuitSize(r1), f, r1, r1)
-        Result(f.size, r1.size, r2.size, f, r1, r2)
+        Result(f.circuitSize, r1.circuitSize, r2.circuitSize, f, r1, r2)
+        //Result(f.size, r1.size, r2.size, f, r1, r2)
   }
 
   case class Result(originalSize: BigInt, resultingSizeOCBSL: BigInt, resultingSizeOL: BigInt, originalFormula: Formula, ocbslFormula: Formula, olFormula: Formula)

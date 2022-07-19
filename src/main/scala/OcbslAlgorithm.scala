@@ -174,6 +174,7 @@ object OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   var totNoOrFormula:Int = 0
   sealed abstract class NoOrFormula {
     val size: BigInt
+    val uniqueKey: Int = totNoOrFormula
     var ocbslNormalForm: Option[NormalFormula] = None
     override def toString: String = Printer.pretty(this)
     totNoOrFormula+=1
@@ -194,6 +195,7 @@ object OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   var totNormalFormula = 0
   sealed abstract class NormalFormula {
     val code: Int
+    val uniqueKey: Int = totNormalFormula
     var formulaP: Option[Formula] = None
     var formulaN: Option[Formula] = None
     var formulaAIG: Option[Formula] = None
@@ -207,7 +209,7 @@ object OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
     val code: Int = if (b) 1 else 0
   }
 
-  def toFormula(formula: NormalFormula):Formula = toFormulaNNF(formula)
+  def toFormula(formula: NormalFormula):Formula = toFormulaAIG(formula)
   /**
    * Puts back in regular formula syntax, and performs negation normal form to produce shorter version.
    */
@@ -215,7 +217,7 @@ object OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
     if positive & f.formulaP.isDefined then return f.formulaP.get
     if !positive & f.formulaN.isDefined then return f.formulaN.get
     val r = f match
-      case NVariable(id, code) => if (positive) Variable(id) else Neg(Variable(id))
+      case NVariable(id, code) => if (positive) Variable(id) else Neg(toFormulaNNF(f, true))
       case NNeg(child, code) => toFormulaNNF(child, !positive)
       case NAnd(children, code) => if positive then And(children.map(c => toFormulaNNF(c, true))) else Or(children.map(c => toFormulaNNF(c, false)))
       case NLiteral(b) => Literal(positive == b)
@@ -247,12 +249,12 @@ object OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
     if positive & f.noOrFormulaP.isDefined then return f.noOrFormulaP.get
     if !positive & f.noOrFormulaN.isDefined then return f.noOrFormulaN.get
     val r = f match {
-      case Variable(id) => if positive then NoOrVariable(id) else NoOrNeg(NoOrVariable(id))
+      case Variable(id) => if positive then NoOrVariable(id) else NoOrNeg(removeOr(f, true))
       case Neg(child) => removeOr(child, !positive)
       case Or(children) =>
-        if positive then NoOrNeg(NoOrAnd(children.map(c => removeOr(c, false)))) else NoOrAnd(children.map(c => removeOr(c, false)))
+        if positive then NoOrNeg(removeOr(f, false)) else NoOrAnd(children.map(c => removeOr(c, false)))
       case And(children) =>
-        if positive then NoOrAnd(children.map(c => removeOr(c, true))) else NoOrNeg(NoOrAnd(children.map(c => removeOr(c, true))))
+        if positive then NoOrAnd(children.map(c => removeOr(c, true))) else NoOrNeg(removeOr(f, true))
       case Literal(b) => NoOrLiteral(b == positive)
     }
     if positive then f.noOrFormulaP = Some(r)

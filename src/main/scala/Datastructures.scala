@@ -18,6 +18,8 @@ object Datastructures {
     var polarFormulaP:Option[PolarFormula] = None
     var polarFormulaN:Option[PolarFormula] = None
 
+    lazy val circuitSize: BigInt = Datastructures.circuitSize(this)
+
     override def toString: String = Printer.pretty(this)
 
     val depth:Int = this match
@@ -35,14 +37,14 @@ object Datastructures {
   }
   case class Or(children: List[Formula]) extends Formula {
     val size: BigInt = {
-      val fold = (children map (_.size)).foldLeft(1:BigInt) { case (a, b) => (a + b) }
-      fold+1-children.count(_.isInstanceOf[Or])
+      val fold = (children map (_.size)).sum+1
+      fold
     }
   }
   case class And(children: List[Formula]) extends Formula {
     val size: BigInt = {
-      val fold = (children map (_.size)).foldLeft(1:BigInt) { case (a, b) => (a + b) }
-      fold+1-children.count(_.isInstanceOf[And])
+      val fold = (children map (_.size)).sum+1
+      fold
     }
   }
 
@@ -94,12 +96,14 @@ object Datastructures {
         s.update(f1.uniqueKey, 1)
         f1 match
           case Variable(id) => 1
-          case Neg(child) => foldedSize(child)+1
+          case Neg(child) => foldedSize(child)
           case Or(children) =>
-            val fold = (children map (foldedSize)).foldLeft(-1:BigInt) { case (a, b) => (a + b+1) }
+            //val fold = (children map (foldedSize)).foldLeft(-1:BigInt) { case (a, b) => (a + b+1) }
+            val fold = (children map (foldedSize)).sum+1
             fold
           case And(children) =>
-            val fold = (children map (foldedSize)).foldLeft(-1:BigInt) { case (a, b) => (a + b+1) }
+            //val fold = (children map (foldedSize)).foldLeft(-1:BigInt) { case (a, b) => (a + b+1) }
+            val fold = (children map (foldedSize)).sum+1
             fold
           case Literal(b) => 1
     }
