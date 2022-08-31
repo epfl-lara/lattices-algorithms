@@ -15,8 +15,7 @@ object Datastructures {
     var noOrFormulaP:Option[NoOrFormula] = None
     var noOrFormulaN:Option[NoOrFormula] = None
 
-    var polarFormulaP:Option[PolarFormula] = None
-    var polarFormulaN:Option[PolarFormula] = None
+    var polarFormula:Option[PolarFormula] = None
 
     lazy val circuitSize: BigInt = Datastructures.circuitSize(this)
 
@@ -48,10 +47,17 @@ object Datastructures {
     }
   }
 
-
   case class Literal(b: Boolean) extends Formula {
     val size = 1
   }
+
+  def redo(f:Formula):Formula = f match
+    case Variable(id) => Variable(id)
+    case Neg(child) => Neg(redo(child))
+    case Or(children) => Or(children map redo)
+    case And(children) => And(children map redo)
+    case Literal(b) => Literal(b)
+
 
   trait EquivalenceAndNormalFormAlgorithm {
     def isSame(formula1: Formula, formula2: Formula): Boolean

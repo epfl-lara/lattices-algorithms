@@ -5,23 +5,6 @@ import scala.collection.mutable
 class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   import OLAlgorithm.*
 
-  var invTot = 0
-  var invTotTrue = 0
-  val v = NPVariable(-5, true)
-  def getInverse(f: NormalPFormula): NormalPFormula = {
-    invTot+=1
-    f.inverse match
-      case Some(value) => value
-      case None =>
-        invTotTrue+=1
-        val second = f match
-          case NPVariable(id, polarity) => NPVariable(id, !polarity)
-          case NPAnd(children, polarity) => NPAnd(children, !polarity)
-          case NPLiteral(b) => NPLiteral(!b)
-        f.inverse = Some(second)
-        second.inverse = Some(f)
-        second
-  }
 
   var leqTot = 0
   var leqTotTrue = 0
@@ -34,8 +17,6 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
 
         leqTotTrue+=1
         val r = (formula1, formula2) match
-          case (_, NPVariable(-5, true)) => false
-          case (NPVariable(-5, true), _) => false
           case (NPLiteral(b1), NPLiteral(b2)) => !b1 || b2
           case (NPLiteral(b), _) => !b
           case (_, NPLiteral(b)) => b
@@ -55,25 +36,48 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
         r
 
   def simplify(children:List[NormalPFormula], polarity:Boolean): NormalPFormula = {
+    val nonSimplified = NPAnd(children, polarity)
     var remaining : List[NormalPFormula] = Nil
+    def treatChild(i:NormalPFormula): List[NormalPFormula] = {
+      val r: List[NormalPFormula] = i match
+        case NPAnd(ch, true) => ch
+        case NPAnd(ch, false) =>
+          if (polarity) {
+            val trCh = ch map getInverse
+            trCh.find(f =>{
+              latticesLEQ(nonSimplified, f)
+            }) match
+              case Some(value) =>
+                treatChild(value)
+              case None => List(i)
+          } else {
+            val trCh = ch
+            trCh.find(f =>{
+              latticesLEQ(f, nonSimplified)
+            }) match
+              case Some(value) =>
+                treatChild(getInverse(value))
+              case None => List(i)
+          }
+        case _ => List(i)
+      r
+    }
     for (i <- children) do {
-      i match
-        case NPAnd(ch, true) => remaining = ch++remaining
-        case _ => remaining = i::remaining
+      val r = treatChild(i)
+      remaining = r++remaining
     }
     var accepted: List[NormalPFormula] = Nil
-
     while remaining.nonEmpty do {
       val current = remaining.head
       remaining = remaining.tail
-      if (!remaining.exists(e => latticesLEQ(current, e)) &&
-          !accepted.exists(e => latticesLEQ(current, e))) {
-        accepted = current :: accepted
+      if (!latticesLEQ(NPAnd(remaining++accepted, true), current)){
+        accepted = current::accepted
       }
     }
-    if accepted.isEmpty then NPLiteral(polarity)
-    else if accepted.size == 1 then if polarity then accepted.head else getInverse(accepted.head)
-    else NPAnd(accepted, polarity)
+    val r = if accepted.isEmpty then NPLiteral(polarity)
+        else if accepted.size == 1 then if polarity then accepted.head else getInverse(accepted.head)
+        else NPAnd(accepted, polarity)
+    r
   }
 
   def checkForContradiction(f:NPAnd): Boolean = {
@@ -88,13 +92,14 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   var norTot = 0
   def nPnormalForm(formula:PolarFormula):NormalPFormula = {
     norTot+=1
-    //if norTot%100 == 0 then println(s"norTot: $norTot")
-    //else if norTot> 4800 && norTot%10 == 0 then println(s"norTot: $norTot")
     formula.polarNormalForm match
-      case Some(value) => value
+      case Some(value) =>
+        value
       case None =>
         val r = formula match
-          case PolarVariable(id, polarity) => NPVariable(id, polarity)
+          case PolarVariable(id, true) => NPVariable(id, true)
+          case PolarVariable(id, false) =>
+            getInverse(nPnormalForm(getInversePolar(formula)))
           case PolarAnd(children, polarity) =>
             val newChildren = children map nPnormalForm
             val simp = simplify(newChildren, polarity)
@@ -117,10 +122,6 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
     val p = polarize(formula)
     val nf = nPnormalForm(p)
     val res = toFormula(nf)
-    val n = p.size
-    val squared = n*n
-    //println(s"     Stats: Polarized formula of size $n (squared: $squared)")
-    //println(s"     norTot: $norTot (${norTot.toDouble/squared}), leqTot: $leqTot (${leqTot.toDouble/squared}), invTot: $invTot (${invTot.toDouble/squared})")
     res
 }
 
@@ -130,6 +131,7 @@ object OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   sealed abstract class PolarFormula {
     val uniqueKey:Int = totPolarFormula
     val size: Int
+    var inverse:Option[PolarFormula]=None
     var polarNormalForm: Option[NormalPFormula] = None
     override def toString: String = Printer.pretty(this)
     totPolarFormula += 1
@@ -194,7 +196,8 @@ object OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   def toFormulaAIG(f: NormalPFormula, positive: Boolean = true): Formula =
     if f.formulaAIG.isDefined then return f.formulaAIG.get
     val r = f match
-      case NPVariable(id, polarity) => if polarity then Variable(id) else Neg(Variable(id))
+      case NPVariable(id, true) => Variable(id)
+      case NPVariable(id, false) => Neg(toFormulaAIG(getInverse(f)))
       case NPAnd(children, polarity) =>
         if polarity then
           And(children.map(c => toFormulaAIG(c)))
@@ -212,11 +215,13 @@ object OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
 
   override def reducedForm(formula: Formula): Formula = (new OLAlgorithm).reducedForm(formula)
 
-  def polarize(f: Formula, polarity: Boolean = true): PolarFormula =
-    if polarity & f.polarFormulaP.isDefined then return f.polarFormulaP.get
-    if !polarity & f.polarFormulaN.isDefined then return f.polarFormulaN.get
+  def polarize(f: Formula, polarity: Boolean = true): PolarFormula = {
+    if polarity & f.polarFormula.isDefined then return f.polarFormula.get
+    if !polarity & f.polarFormula.isDefined then return getInversePolar(f.polarFormula.get)
     val r = f match {
-      case Variable(id) => PolarVariable(id, polarity)
+      case Variable(id) =>
+        val nv = PolarVariable(id, polarity)
+        nv
       case Neg(child) => polarize(child, !polarity)
       case Or(children) =>
         PolarAnd(children.map(polarize(_, false)), !polarity)
@@ -224,9 +229,36 @@ object OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
         PolarAnd(children.map(polarize(_, true)), polarity)
       case Literal(b) => PolarLiteral(b == polarity)
     }
-    if polarity then f.polarFormulaP = Some(r)
-    else f.polarFormulaN = Some(r)
+    if polarity then f.polarFormula = Some(r)
+    else f.polarFormula = Some(getInversePolar(r))
     r
+  }
 
+
+    def getInversePolar(f: PolarFormula): PolarFormula = {
+      f.inverse match
+        case Some(value) => value
+        case None =>
+          val second = f match
+            case PolarVariable(id, polarity) => PolarVariable(id, !polarity)
+            case PolarAnd(children, polarity) => PolarAnd(children, !polarity)
+            case PolarLiteral(b) => PolarLiteral(!b)
+          f.inverse = Some(second)
+          second.inverse = Some(f)
+          second
+    }
+
+  def getInverse(f: NormalPFormula): NormalPFormula = {
+    f.inverse match
+      case Some(value) => value
+      case None =>
+        val second = f match
+          case NPVariable(id, polarity) => NPVariable(id, !polarity)
+          case NPAnd(children, polarity) => NPAnd(children, !polarity)
+          case NPLiteral(b) => NPLiteral(!b)
+        f.inverse = Some(second)
+        second.inverse = Some(f)
+        second
+  }
 
 }

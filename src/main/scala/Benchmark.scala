@@ -25,24 +25,25 @@ object Benchmark {
 
 
   def aigerBenchmark(path:String): Unit = {
-    val timeout = 60
+    val timeout = 20
     val formulas = AigerParser.getAigerFormulas(path)
+    println("Parsing finished")
     val rOcbsl =  runWithTimeout(timeout*1000)(benchmarkOcbsl(formulas))
-    //val rOl =  runWithTimeout(timeout*1000)(benchmarkOl(formulas))
+    val rOl =  runWithTimeout(timeout*1000)(benchmarkOl(formulas))
     rOcbsl match
       case Success(value) =>
         println(f"OCBSL algorithm succeeded with an average improvement" +
           f" ratio of ${value.ratio}%1.4f (original formula of size ${bigIntRepr(value.original)})")
       case Failure(exception) => println(f"OCBSL algorithm didn't succeed in ${timeout}s (${exception.getClass})" +
         f" (original formula of size ${bigIntRepr(formulas.map(_.size).sum)})")
-/*
+
     rOl match
       case Success(value) =>
         println(f"OL algorithm succeeded with an average improvement" +
           f" ratio of ${value.ratio}%1.4f (original formula of size ${bigIntRepr(value.original)})")
       case Failure(exception) => println(f"OL algorithm didn't succeed in ${timeout}s (${exception.getClass})" +
         f" (original formula of size ${bigIntRepr(formulas.map(_.size).sum)})")
-*/
+
   }
 
   def benchmarkOcbsl(formulas:List[Formula]) : Improvement = {
@@ -114,7 +115,8 @@ object Benchmark {
     if number <= 0 then Nil
     else {
       val r = randomFormula(size, variables)
-      makeResult(r) :: benchmark(number - 1, size, variables)
+      val r1 = makeResult(r)
+      r1 :: benchmark(number - 1, size, variables)
     }
   }
 

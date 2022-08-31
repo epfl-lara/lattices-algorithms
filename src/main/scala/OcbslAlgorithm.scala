@@ -3,13 +3,7 @@ import Datastructures.*
 import scala.collection.mutable
 import scala.math.Numeric.IntIsIntegral
 
-/**
- * An EquivalenceChecker is an object that allows to detect equivalence between formulas in the
- * theory of Orthocomplemented Bisemilattices.
- * This allows proof checkers and writers to avoid having to deal with a class of "easy" equivalence.
- * For example, by considering "x ∨ y" as being the same formula as "y ∨ x", we can avoid frustrating errors.
- * This relation is always a subrelation of the usual FOL implication.
- */
+
 class OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   import OcbslAlgorithm.*
 
@@ -158,6 +152,7 @@ class OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   override def isSame(formula1: Formula, formula2: Formula): Boolean = checkEquivalence(removeOr(formula1), removeOr(formula2))
 
   override def reducedForm(formula: Formula): Formula = {
+
     val f = removeOr(formula)
     getCode(f)
     val r = toFormula(f.ocbslNormalForm.get)

@@ -2,17 +2,15 @@ import Datastructures.*
 import FormulaGenerator.*
 import Benchmark.*
 object Main {
-
+  var testing = true
   def main(args: Array[String]): Unit = {
     val folder = "/home/sguillou/Desktop/aiger/"
-
-
-    //epflAigerBenchmark(folder)
-
-
-    val adderFormulas = AigerParser.getAigerFormulas(folder+"adder.aig")
-    val algos = Some((new OcbslAlgorithm, new OLAlgorithm))
-    adderFormulas.slice(adderFormulas.length - 2, adderFormulas.length - 2 + 1).foreach { f =>
+    epflAigerBenchmark(folder)
+/*
+    val adderFormulas = AigerParser.getAigerFormulas(folder+"div.aig")
+    //val algos = Some((new OcbslAlgorithm, new OLAlgorithm))
+    //adderFormulas.slice(adderFormulas.length - 1, adderFormulas.length - 1 + 1).foreach { f =>
+    adderFormulas.foreach { f =>
 
       println(s"formula size: ${bigIntRepr(circuitSize(f))}")
       println(s"formula depth: ${bigIntRepr(f.depth)}")
@@ -20,39 +18,33 @@ object Main {
       val r = makeResult(f)
       sparsePrintResult(r)
 
+      /*
       println(s"original formula size: ${r.originalFormula.size}")
       println(s"ol formula size: ${r.olFormula.size}")
       println(s"ocbsl formula size: ${r.ocbslFormula.size}")
       println(s"original formula circuit size: ${r.originalFormula.circuitSize}")
       println(s"ol formula circuit size: ${r.olFormula.circuitSize}")
       println(s"ocbsl formula circuit size: ${r.ocbslFormula.circuitSize}")
-      val pol = OLAlgorithm.polarize(r.originalFormula)
       println(s"formula original: ${r.originalFormula}")
       println(s"formula ocbsl   : ${r.ocbslFormula}")
       println(s"formula ol      : ${r.olFormula}")
+      val pol = OLAlgorithm.polarize(r.originalFormula)
       println(s"formula pol     : ${pol}")
       val npf = OLAlgorithm.nPnormalForm(pol)
       println(s"formula npf     : ${npf}")
       println(s"formula ret     : ${OLAlgorithm.toFormula(npf)}")
-
-
-
-
-
+      */
 
     }
-
+*/
 /*
-    val rs = benchmark(20, 5000, 100)
+    val rs = benchmark(10, 300, 10)
     rs.foreach { r =>
-
+      checkResult(r, 10)
       sparsePrintResult(r)
     }
 */
-// a /\ x ==> a /\ x[1/a]
-
   }
-
 
 
   val a = Variable(0)
