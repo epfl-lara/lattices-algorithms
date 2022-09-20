@@ -11,6 +11,7 @@ class OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   import OcbslAlgorithm.*
 
   def checkForContradiction(children: List[(NormalFormula, Int)]): Boolean = {
+    checkInterrupted()
     val (negatives_temp, positives_temp) = children.foldLeft[(List[NormalFormula], List[NormalFormula])]((Nil, Nil))((acc, ch) =>
       acc match {
         case (negatives, positives) =>
@@ -53,6 +54,7 @@ class OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
    * Assumes the formula to be free of And. Apply removeOr first.
    */
   def OCBSLCode(phi: NoOrFormula): Int = {
+    checkInterrupted()
     if (phi.ocbslNormalForm.nonEmpty) return phi.ocbslNormalForm.get.code
     val L = pDisj(phi, Nil)
     val L2 = L zip (L map (_.code))
@@ -70,6 +72,7 @@ class OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   }
 
   def pDisj(phi: NoOrFormula, acc: List[NormalFormula]): List[NormalFormula] = {
+    checkInterrupted()
     if (phi.ocbslNormalForm.nonEmpty){
       return pDisjNormal(phi.ocbslNormalForm.get, acc)
     }
@@ -91,6 +94,7 @@ class OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   }
 
   def pNeg(phi: NoOrFormula, parent: NoOrFormula, acc: List[NormalFormula]): List[NormalFormula] = {
+    checkInterrupted()
     if (phi.ocbslNormalForm.nonEmpty){
       return pNegNormal(phi.ocbslNormalForm.get, parent, acc)
     }
@@ -161,6 +165,8 @@ class OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
     val r = toFormula(f.ocbslNormalForm.get)
     r
   }
+
+  private inline def checkInterrupted(): Unit = if (Thread.interrupted()) throw new InterruptedException
 }
 
 object OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {

@@ -17,10 +17,10 @@ object Benchmark {
     epflAigerBenchmark(folder, cases, timeout)
   }
   def epflAigerBenchmark(folder:String, cases:List[String], timeout:Int):Unit = {
-    cases.foreach(c =>
+    cases.foreach { c =>
       println(s"Benchmark $c:")
-      aigerBenchmark(folder+c, timeout)
-    )
+      aigerBenchmark(folder + c, timeout)
+    }
   }
 
   def aigerBenchmark(path:String, timeout:Int): Unit = {

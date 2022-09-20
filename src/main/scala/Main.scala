@@ -11,7 +11,7 @@ object Main {
      * if check is true, verify that the reduced formulas are logically equivalent
      * (in propositional logic) to the original formula.
      */
-    printRandomBenchmark(1, 10000, 50, false)
+    printRandomBenchmark(10, 10000, 50, false)
 
     /**
      * Parse a set of circuits in Aiger format coming from hardware.
@@ -19,7 +19,7 @@ object Main {
      * are pre-optimized to various degrees.
      * https://www.epfl.ch/labs/lsi/page-102566-en-html/benchmarks/
      */
-    epflAigerBenchmark(folder, 2)
+    epflAigerBenchmark(folder, 5)
 
 
   }

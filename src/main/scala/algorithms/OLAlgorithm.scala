@@ -12,6 +12,7 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   var leqTot = 0
   var leqTotTrue = 0
   def latticesLEQ(formula1: NormalPFormula, formula2: NormalPFormula): Boolean =
+    checkInterrupted()
     leqTot+=1
 
     formula1.lessThan.get(formula2.uniqueKey) match
@@ -39,6 +40,7 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
         r
 
   def simplify(children:List[NormalPFormula], polarity:Boolean): NormalPFormula = {
+    checkInterrupted()
     val nonSimplified = NPAnd(children, polarity)
     var remaining : List[NormalPFormula] = Nil
     def treatChild(i:NormalPFormula): List[NormalPFormula] = {
@@ -84,6 +86,7 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   }
 
   def checkForContradiction(f:NPAnd): Boolean = {
+    checkInterrupted()
     f match
       case NPAnd(children, false) =>
         children.exists(cc => latticesLEQ(cc, f))
@@ -94,6 +97,7 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
 
   var norTot = 0
   def nPnormalForm(formula:PolarFormula):NormalPFormula = {
+    checkInterrupted()
     norTot+=1
     formula.polarNormalForm match
       case Some(value) =>
@@ -117,7 +121,7 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   def checkEquivalence(formula1: PolarFormula, formula2: PolarFormula): Boolean =
     val a = nPnormalForm(formula1)
     val b = nPnormalForm(formula2)
-    latticesLEQ(a, b) & latticesLEQ(b, a)
+    latticesLEQ(a, b) && latticesLEQ(b, a)
   override def isSame(formula1: Formula, formula2: Formula): Boolean = false //checkEquivalence(polarize(formula1), polarize(formula2))
 
 
@@ -126,6 +130,8 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
     val nf = nPnormalForm(p)
     val res = toFormula(nf)
     res
+
+  private inline def checkInterrupted(): Unit = if (Thread.interrupted()) throw new InterruptedException
 }
 
 object OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {

@@ -24,15 +24,15 @@ object Datastructures {
     override def toString: String = Printer.pretty(this)
 
     val depth: Int = this match
-      case Variable(id) => 0
+      case Variable(id) => 1
       case Neg(child) => child.depth
       case Or(children) => 1 + children.map(_.depth).max
       case And(children) => 1 + children.map(_.depth).max
-      case Literal(b) => 0
+      case Literal(b) => 1
   }
 
   case class Variable(id: Int) extends Formula {
-    val size = 0
+    val size = 1
   }
 
   case class Neg(child: Formula) extends Formula {
@@ -54,7 +54,7 @@ object Datastructures {
   }
 
   case class Literal(b: Boolean) extends Formula {
-    val size = 0
+    val size = 1
   }
 
   def redo(f: Formula): Formula = f match
@@ -108,7 +108,7 @@ object Datastructures {
       else
         s.update(f1.uniqueKey, 1)
         f1 match
-          case Variable(id) => 0
+          case Variable(id) => 1
           case Neg(child) => foldedSize(child)
           case Or(children) =>
             //val fold = (children map (foldedSize)).foldLeft(-1:BigInt) { case (a, b) => (a + b+1) }
@@ -118,7 +118,7 @@ object Datastructures {
             //val fold = (children map (foldedSize)).foldLeft(-1:BigInt) { case (a, b) => (a + b+1) }
             val fold = (children map (foldedSize)).sum + 1
             fold
-          case Literal(b) => 0
+          case Literal(b) => 1
     }
 
     val r = (fs map foldedSize).sum
