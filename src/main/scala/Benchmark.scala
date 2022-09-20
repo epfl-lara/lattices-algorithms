@@ -1,5 +1,6 @@
-import Datastructures.*
+import algorithms.Datastructures.*
 import FormulaGenerator.*
+import algorithms.{OLAlgorithm, OcbslAlgorithm, Printer}
 
 import java.util.concurrent.TimeoutException
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -10,65 +11,59 @@ import scala.util.{Failure, Success, Try}
 
 object Benchmark {
 
-
-  def epflAigerBenchmark(folder:String, cases:List[String]):Unit = {
-    cases.foreach(c =>
-      println(s"Benchmark $c:")
-      aigerBenchmark(folder+c)
-    )
-  }
-  def epflAigerBenchmark(folder:String):Unit = {
+  def epflAigerBenchmark(folder:String, timeout:Int):Unit = {
     val cases = List("adder.aig", "bar.aig", "div.aig", "hyp.aig",
       "log2.aig", "max.aig", "multiplier.aig", "sin.aig", "sqrt.aig", "square.aig")
-    epflAigerBenchmark(folder, cases)
+    epflAigerBenchmark(folder, cases, timeout)
+  }
+  def epflAigerBenchmark(folder:String, cases:List[String], timeout:Int):Unit = {
+    cases.foreach(c =>
+      println(s"Benchmark $c:")
+      aigerBenchmark(folder+c, timeout)
+    )
   }
 
+  def aigerBenchmark(path:String, timeout:Int): Unit = {
+    val tryFormulas = runWithTimeout(timeout*1000)(AigerParser.getAigerFormulas(path))
+    println("parsing finished")
+    tryFormulas match
+      case Failure(exception) => println(f"Parsing of file ${path.split('/').last} didn't finish in ${timeout}s (${exception.getClass})")
+      case Success(formulas) =>
+        println(s"Original circuit of size ${bigIntRepr(formulas.map(_.circuitSize).sum)}")
+        val rOcbsl = runWithTimeout(timeout * 1000)(benchmarkOcbsl(formulas))
+        rOcbsl match
+          case Success(value) =>
+            println(f"OCBSL algorithm succeeded with an average improvement ratio of ${value.ratio}%1.4f")
+          case Failure(exception) =>
+            println(f"OCBSL algorithm didn't succeed in ${timeout}s (${exception.getClass})")
 
-  def aigerBenchmark(path:String): Unit = {
-    val timeout = 20
-    val formulas = AigerParser.getAigerFormulas(path)
-    println("Parsing finished")
-    val rOcbsl =  runWithTimeout(timeout*1000)(benchmarkOcbsl(formulas))
-    val rOl =  runWithTimeout(timeout*1000)(benchmarkOl(formulas))
-    rOcbsl match
-      case Success(value) =>
-        println(f"OCBSL algorithm succeeded with an average improvement" +
-          f" ratio of ${value.ratio}%1.4f (original formula of size ${bigIntRepr(value.original)})")
-      case Failure(exception) => println(f"OCBSL algorithm didn't succeed in ${timeout}s (${exception.getClass})" +
-        f" (original formula of size ${bigIntRepr(formulas.map(_.size).sum)})")
-
-    rOl match
-      case Success(value) =>
-        println(f"OL algorithm succeeded with an average improvement" +
-          f" ratio of ${value.ratio}%1.4f (original formula of size ${bigIntRepr(value.original)})")
-      case Failure(exception) => println(f"OL algorithm didn't succeed in ${timeout}s (${exception.getClass})" +
-        f" (original formula of size ${bigIntRepr(formulas.map(_.size).sum)})")
-
+        val rOl = runWithTimeout(timeout * 1000)(benchmarkOl(formulas))
+        rOl match
+          case Success(value) =>
+            println(f"OL algorithm succeeded with an average improvement ratio of ${value.ratio}%1.4f")
+          case Failure(exception) =>
+            println(f"OL algorithm didn't succeed in ${timeout}s (${exception.getClass})")
   }
+
+  case class Improvement(original:BigInt, reduced:BigInt, ratio:Double)
+  case class Result(originalSize: BigInt, resultingSizeOCBSL: BigInt, resultingSizeOL: BigInt, originalFormula: Formula, ocbslFormula: Formula, olFormula: Formula)
+
 
   def benchmarkOcbsl(formulas:List[Formula]) : Improvement = {
     val algo = new OcbslAlgorithm
-    val mean:(BigInt, BigInt) = formulas.foldLeft((0:BigInt, 0:BigInt)){
-      case ((a,b), f) =>
-        val r = algo.reducedForm(f)
-        (a+f.size,b+r.size)}
-    Improvement(mean._1, mean._2, (BigDecimal(mean._1)/BigDecimal(mean._2)).toDouble)
+    val total:(BigInt, BigInt) = (circuitSize(formulas), circuitSize(formulas map algo.reducedForm))
+    Improvement(total._1, total._2, (BigDecimal(total._2)/BigDecimal(total._1)).toDouble)
   }
 
   def benchmarkOl(formulas:List[Formula]) : Improvement = {
     val algo = new OLAlgorithm
-    val mean:(BigInt, BigInt) = formulas.foldLeft((0:BigInt, 0:BigInt)){
-      case ((a,b), f) =>
-        val r = algo.reducedForm(f)
-        (a+f.size,b+r.size)}
-    Improvement(mean._1, mean._2, (BigDecimal(mean._1)/BigDecimal(mean._2)).toDouble)
+    val total:(BigInt, BigInt) = (circuitSize(formulas), circuitSize(formulas map algo.reducedForm))
+    Improvement(total._1, total._2, (BigDecimal(total._2)/BigDecimal(total._1)).toDouble)
   }
 
   def bigIntRepr(n:BigInt) :String = {
     if n < 1000000 then s"$n" else f"env. 10^${n.toString.length}"
   }
-
-  case class Improvement(original:BigInt, reduced:BigInt, ratio:Double)
 
   def checkResult(r: Result, n: Int): Unit = {
     val check1 = checkEquivalence(r.originalFormula, r.ocbslFormula, n)
@@ -93,8 +88,9 @@ object Benchmark {
   }
 
 
-
-
+  /**
+   * Compute the circuit size of a formula and of its reduced forms
+   */
   def makeResult(f: Formula, algos:Option[(OcbslAlgorithm, OLAlgorithm)]=None): Result = {
     algos match
       case Some(value) =>
@@ -109,7 +105,18 @@ object Benchmark {
         //Result(f.size, r1.size, r2.size, f, r1, r2)
   }
 
-  case class Result(originalSize: BigInt, resultingSizeOCBSL: BigInt, resultingSizeOL: BigInt, originalFormula: Formula, ocbslFormula: Formula, olFormula: Formula)
+  /**
+   * Produces random formulas and print their size and the size of their reduced form.
+   * if check is true, verify that the reduced formulas are logically equivalent
+   * (in propositional logic) to the original formula.
+   */
+  def printRandomBenchmark(number:Int, size:Int, variables:Int, check:Boolean): Unit = {
+    val rs = benchmark(number, size, variables)
+    rs.foreach { r =>
+      if check then checkResult(r, variables)
+      sparsePrintResult(r)
+    }
+  }
 
   def benchmark(number: Int, size: Int, variables: Int): List[Result] = {
     if number <= 0 then Nil

@@ -1,50 +1,30 @@
-import Datastructures.*
+import algorithms.Datastructures.*
 import FormulaGenerator.*
 import Benchmark.*
 object Main {
   var testing = true
   def main(args: Array[String]): Unit = {
     val folder = "/home/sguillou/Desktop/aiger/"
-    epflAigerBenchmark(folder)
-/*
-    val adderFormulas = AigerParser.getAigerFormulas(folder+"div.aig")
-    //val algos = Some((new OcbslAlgorithm, new OLAlgorithm))
-    //adderFormulas.slice(adderFormulas.length - 1, adderFormulas.length - 1 + 1).foreach { f =>
-    adderFormulas.foreach { f =>
 
-      println(s"formula size: ${bigIntRepr(circuitSize(f))}")
-      println(s"formula depth: ${bigIntRepr(f.depth)}")
+    /*
+     * Produces random formulas and print their size and the size of their reduced form.
+     * if check is true, verify that the reduced formulas are logically equivalent
+     * (in propositional logic) to the original formula.
+     */
+    printRandomBenchmark(1, 10000, 50, false)
 
-      val r = makeResult(f)
-      sparsePrintResult(r)
+    /**
+     * Parse a set of circuits in Aiger format coming from hardware.
+     * Those benchmark are intended to compare optimization methods and-
+     * are pre-optimized to various degrees.
+     * https://www.epfl.ch/labs/lsi/page-102566-en-html/benchmarks/
+     */
+    epflAigerBenchmark(folder, 2)
 
-      /*
-      println(s"original formula size: ${r.originalFormula.size}")
-      println(s"ol formula size: ${r.olFormula.size}")
-      println(s"ocbsl formula size: ${r.ocbslFormula.size}")
-      println(s"original formula circuit size: ${r.originalFormula.circuitSize}")
-      println(s"ol formula circuit size: ${r.olFormula.circuitSize}")
-      println(s"ocbsl formula circuit size: ${r.ocbslFormula.circuitSize}")
-      println(s"formula original: ${r.originalFormula}")
-      println(s"formula ocbsl   : ${r.ocbslFormula}")
-      println(s"formula ol      : ${r.olFormula}")
-      val pol = OLAlgorithm.polarize(r.originalFormula)
-      println(s"formula pol     : ${pol}")
-      val npf = OLAlgorithm.nPnormalForm(pol)
-      println(s"formula npf     : ${npf}")
-      println(s"formula ret     : ${OLAlgorithm.toFormula(npf)}")
-      */
 
-    }
-*/
-/*
-    val rs = benchmark(10, 300, 10)
-    rs.foreach { r =>
-      checkResult(r, 10)
-      sparsePrintResult(r)
-    }
-*/
   }
+
+
 
 
   val a = Variable(0)

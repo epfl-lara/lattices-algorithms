@@ -1,4 +1,7 @@
-import Datastructures.*
+package algorithms
+
+import algorithms.Datastructures.*
+import algorithms.OcbslAlgorithm.*
 
 import scala.collection.mutable
 import scala.math.Numeric.IntIsIntegral

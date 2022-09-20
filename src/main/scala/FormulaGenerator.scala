@@ -1,4 +1,4 @@
-import Datastructures.*
+import algorithms.Datastructures.*
 
 import scala.util.Random
 
@@ -10,7 +10,7 @@ object FormulaGenerator {
       case Some(value) => new Random(value)
       case None => new Random()
     def single(size: Int): Formula = {
-      if size <= 2 then {
+      if size <= 1 then {
         val v = variables(rg.nextInt(variables.size))
         if rg.nextBoolean() then v else Neg(v)
       } else

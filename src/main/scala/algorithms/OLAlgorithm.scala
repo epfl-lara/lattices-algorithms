@@ -1,4 +1,7 @@
-import Datastructures.*
+package algorithms
+
+import algorithms.Datastructures.*
+import algorithms.OLAlgorithm.*
 
 import scala.collection.mutable
 

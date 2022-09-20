@@ -1,5 +1,5 @@
 import java.io.{BufferedInputStream, FileInputStream}
-import Datastructures.*
+import algorithms.Datastructures.*
 import scala.collection.mutable
 
 object AigerParser {
