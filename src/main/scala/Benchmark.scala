@@ -123,10 +123,14 @@ object Benchmark {
     printWriter.write(s"Random Benchmark, $date\n")
     printWriter.write(s"Parameters: $number formulas, size max $size, $variables different variables, check:$check\n")
 
-    val rs = benchmark(number, size, variables)
-    rs.foreach { r =>
+
+    var rs:List[Result] = Nil
+    (1 to number) foreach { _ =>
+      val r = benchmark(size, variables)
+      rs = r::rs
       if check then checkResult(r, variables, printWriter.write)
       sparseSaveResult(r, printWriter.write)
+      printWriter.flush()
     }
     val ocbslMean = rs.map(r => BigDecimal(r.resultingSizeOCBSL.toDouble)/BigDecimal(r.originalSize)).sum/rs.size
     val olMean = rs.map(r => BigDecimal(r.resultingSizeOL.toDouble)/BigDecimal(r.originalSize)).sum/rs.size
@@ -135,13 +139,9 @@ object Benchmark {
     printWriter.close()
   }
 
-  def benchmark(number: Int, size: Int, variables: Int): List[Result] = {
-    if number <= 0 then Nil
-    else {
-      val r = randomFormula(size, variables)
-      val r1 = makeResult(r)
-      r1 :: benchmark(number - 1, size, variables)
-    }
+  def benchmark(size: Int, variables: Int): Result = {
+    val r = randomFormula(size, variables)
+    makeResult(r)
   }
 
   //
