@@ -1,43 +1,74 @@
-import algorithms.Datastructures.*
 import FormulaGenerator.*
+import algorithms.Datastructures.*
 import algorithms.{OLAlgorithm, OcbslAlgorithm, Printer}
 
-import java.util.concurrent.TimeoutException
-import scala.concurrent.ExecutionContext.Implicits.global
+import java.io.*
+import java.nio.file.{Files, Paths}
+import java.text.SimpleDateFormat
+import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
+import java.util.Date
+import java.util.concurrent.{TimeUnit, TimeoutException}
 import scala.concurrent.*
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.*
 import scala.util.{Failure, Success, Try}
-import java.io._
-import java.text.SimpleDateFormat;
-import java.util.Date;
 
 object Benchmark {
+  enum Algo {
+    case OL
+    case OCBSL
+  }
 
-  def epflAigerBenchmark(folder:String):Unit = {
+  def epflAigerBenchmark(folder:String, timeout: Duration):Unit = {
     val cases = Array("adder.aig", "bar.aig", "div.aig", "hyp.aig",
       "log2.aig", "max.aig", "multiplier.aig", "sin.aig", "sqrt.aig", "square.aig")
-    epflAigerBenchmark(folder, cases)
+    epflAigerBenchmark(folder, cases, timeout)
   }
-  def epflAigerBenchmark(folder:String, cases:Array[String]):Unit = {
+  def epflAigerBenchmark(folder:String, cases:Array[String], timeout: Duration):Unit = {
     cases.foreach { c =>
-      aigerBenchmark(folder + c)
+      aigerBenchmark(folder + c, timeout)
     }
   }
 
-  def aigerBenchmark(path:String): Unit = {
+  def fork(pw: PrintWriter, algo: Algo, path:String, timeout: Duration): Unit = {
+    import sys.process.*
+    val jar = getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath
+    val logger = ProcessLogger { s =>
+      pw.write(s)
+      pw.write('\n')
+    }
+    // val start = LocalDateTime.now()
+    val proc = Process("java", Seq("-cp", jar, "ForkMain", s"${algo.toString.toLowerCase}", path)).run(logger)
+    try {
+      val exitCode = Await.result(Future(blocking(proc.exitValue())), timeout)
+      if (exitCode != 0) {
+        pw.write(s"$algo exited with non-zero code $exitCode\n")
+      }
+    } catch {
+      case _: TimeoutException =>
+        pw.write(s"$algo did not finish within $timeout\n")
+        proc.destroy()
+    }
+    // val end = LocalDateTime.now()
+    // println(ChronoUnit.MILLIS.between(start, end))
+  }
 
+  def aigerBenchmark(path:String, timeout: Duration): Unit = {
     val name = path.split('/').last
     val folder = path.split('/').dropRight(1).mkString("/")+"/"
-    val fileObject = new File(folder+s"results/$name.txt" )
-    val printWriter = new PrintWriter(fileObject)
+    val filename = s"${folder}results/$name.txt"
+    Files.createDirectories(Paths.get(filename).getParent)
+    val printWriter = new PrintWriter(new File(filename))
     val date = SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(Date())
-    printWriter.write(s"Banchmark $name, $date\n")
+    printWriter.write(s"Benchmark $name, $date\n")
     printWriter.flush()
-    println("datetime")
     val formulas = AigerParser.getAigerFormulas(path)
     printWriter.write(s"Original circuit of size ${bigIntRepr(formulas.map(_.circuitSize).sum)}\n")
     printWriter.flush()
-
+    fork(printWriter, Algo.OCBSL, path, timeout)
+    fork(printWriter, Algo.OL, path, timeout)
+    /*
     val rOcbsl = Try(benchmarkOcbsl(formulas))
     rOcbsl match
       case Success(value) =>
@@ -52,8 +83,8 @@ object Benchmark {
         printWriter.write(f"OL algorithm succeeded with an average improvement ratio of ${value.ratio}%1.4f.\n")
       case Failure(exception) =>
         printWriter.write(f"OL algorithm didn't succeed and raised(${exception.getClass}.\n")
-
-    printWriter.write("SUCCESS\n")
+    */
+    // printWriter.write("SUCCESS\n")
     printWriter.close()
   }
 

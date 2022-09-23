@@ -1,6 +1,11 @@
 import algorithms.Datastructures.*
 import FormulaGenerator.*
 import Benchmark.*
+import FormulaGenerator.*
+import algorithms.Datastructures.*
+
+import scala.concurrent.duration.*
+
 object Main {
   var testing = true
   def main(args: Array[String]): Unit = {
@@ -37,7 +42,7 @@ object Main {
        * are pre-optimized to various degrees.
        * https://www.epfl.ch/labs/lsi/page-102566-en-html/benchmarks/
        */
-      epflAigerBenchmark(folder, cases)
+      epflAigerBenchmark(folder, cases, 3.seconds)
     }
   }
 
