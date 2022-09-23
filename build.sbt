@@ -15,3 +15,5 @@ run / javaOptions ++= Seq(
   "-Xss256M", // stack size
   "-Xmx4G", // (max) heap size
 )
+
+enablePlugins(JmhPlugin)

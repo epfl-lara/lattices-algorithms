@@ -7,42 +7,54 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.*
 import scala.concurrent.duration.*
 import scala.util.{Failure, Success, Try}
-
+import java.io._
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 object Benchmark {
 
-  def epflAigerBenchmark(folder:String, timeout:Int):Unit = {
-    val cases = List("adder.aig", "bar.aig", "div.aig", "hyp.aig",
+  def epflAigerBenchmark(folder:String):Unit = {
+    val cases = Array("adder.aig", "bar.aig", "div.aig", "hyp.aig",
       "log2.aig", "max.aig", "multiplier.aig", "sin.aig", "sqrt.aig", "square.aig")
-    epflAigerBenchmark(folder, cases, timeout)
+    epflAigerBenchmark(folder, cases)
   }
-  def epflAigerBenchmark(folder:String, cases:List[String], timeout:Int):Unit = {
+  def epflAigerBenchmark(folder:String, cases:Array[String]):Unit = {
     cases.foreach { c =>
-      println(s"Benchmark $c:")
-      aigerBenchmark(folder + c, timeout)
+      aigerBenchmark(folder + c)
     }
   }
 
-  def aigerBenchmark(path:String, timeout:Int): Unit = {
-    val tryFormulas = runWithTimeout(timeout*1000)(AigerParser.getAigerFormulas(path))
-    println("parsing finished")
-    tryFormulas match
-      case Failure(exception) => println(f"Parsing of file ${path.split('/').last} didn't finish in ${timeout}s (${exception.getClass})")
-      case Success(formulas) =>
-        println(s"Original circuit of size ${bigIntRepr(formulas.map(_.circuitSize).sum)}")
-        val rOcbsl = runWithTimeout(timeout * 1000)(benchmarkOcbsl(formulas))
-        rOcbsl match
-          case Success(value) =>
-            println(f"OCBSL algorithm succeeded with an average improvement ratio of ${value.ratio}%1.4f")
-          case Failure(exception) =>
-            println(f"OCBSL algorithm didn't succeed in ${timeout}s (${exception.getClass})")
+  def aigerBenchmark(path:String): Unit = {
 
-        val rOl = runWithTimeout(timeout * 1000)(benchmarkOl(formulas))
-        rOl match
-          case Success(value) =>
-            println(f"OL algorithm succeeded with an average improvement ratio of ${value.ratio}%1.4f")
-          case Failure(exception) =>
-            println(f"OL algorithm didn't succeed in ${timeout}s (${exception.getClass})")
+    val name = path.split('/').last
+    val folder = path.split('/').dropRight(1).mkString("/")+"/"
+    val fileObject = new File(folder+s"results/$name.txt" )
+    val printWriter = new PrintWriter(fileObject)
+    val date = SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(Date())
+    printWriter.write(s"Banchmark $name, $date\n")
+    printWriter.flush()
+    println("datetime")
+    val formulas = AigerParser.getAigerFormulas(path)
+    printWriter.write(s"Original circuit of size ${bigIntRepr(formulas.map(_.circuitSize).sum)}\n")
+    printWriter.flush()
+
+    val rOcbsl = Try(benchmarkOcbsl(formulas))
+    rOcbsl match
+      case Success(value) =>
+        printWriter.write(f"OCBSL algorithm succeeded with an average improvement ratio of ${value.ratio}%1.4f.\n")
+      case Failure(exception) =>
+        printWriter.write(f"OCBSL algorithm didn't succeed and raised ${exception.getClass}.\n")
+    printWriter.flush()
+
+    val rOl = Try(benchmarkOl(formulas))
+    rOl match
+      case Success(value) =>
+        printWriter.write(f"OL algorithm succeeded with an average improvement ratio of ${value.ratio}%1.4f.\n")
+      case Failure(exception) =>
+        printWriter.write(f"OL algorithm didn't succeed and raised(${exception.getClass}.\n")
+
+    printWriter.write("SUCCESS\n")
+    printWriter.close()
   }
 
   case class Improvement(original:BigInt, reduced:BigInt, ratio:Double)
@@ -65,25 +77,20 @@ object Benchmark {
     if n < 1000000 then s"$n" else f"env. 10^${n.toString.length}"
   }
 
-  def checkResult(r: Result, n: Int): Unit = {
+  def checkResult(r: Result, n: Int, write: String => Unit = println): Unit = {
     val check1 = checkEquivalence(r.originalFormula, r.ocbslFormula, n)
     val check2 = checkEquivalence(r.originalFormula, r.olFormula, n)
-    if !check1._1 then println(s"    check for OCBSL failed on res ${check1._2}<------------------------------------------------")
-    if !check2._1 then println(s"    check for OL failed on res ${check2._2} <------------------------------------------------")
-    if check1._1 && check2._1 then println("    checks are correct")
+    if !check1._1 then write(s"    check for OCBSL failed on assignement ${check1._2}<--------------------------------------------")
+    if !check2._1 then write(s"    check for OL failed on assignement ${check2._2} <--------------------------------------------")
+    if check1._1 && check2._1 then write("    checks are correct")
     else println(s"    ${Printer.prettyFull(r.originalFormula)}")
   }
 
-  def printResult(r: Result): Unit = {
-    println(s"Original formula ${r.originalFormula} of size ${r.originalSize}")
-    println(s"    OCBSL formula ${r.ocbslFormula} of size ${r.resultingSizeOCBSL}")
-    println(s"    OL    formula ${r.olFormula} of size ${r.resultingSizeOL}")
-  }
-  def sparsePrintResult(r: Result): Unit = {
-    println(s"Original formula of size ${bigIntRepr(r.originalSize)}")
-    println(f"    OCBSL formula of size ${bigIntRepr(r.resultingSizeOCBSL)}" +
-      f" (ratio ${BigDecimal(r.resultingSizeOCBSL)/BigDecimal(r.originalSize)}%1.5f )")
-    println(f"    OL    formula of size ${bigIntRepr(r.resultingSizeOL)} (ratio ${BigDecimal(r.resultingSizeOL.toDouble)/BigDecimal(r.originalSize)}%1.5f )")
+  def sparseSaveResult(r: Result, write:String => Unit): Unit = {
+    write(s"Original formula of size ${bigIntRepr(r.originalSize)}\n")
+    write(f"    OCBSL formula of size ${bigIntRepr(r.resultingSizeOCBSL)}" +
+      f" (ratio ${BigDecimal(r.resultingSizeOCBSL)/BigDecimal(r.originalSize)}%1.5f )\n")
+    write(f"    OL    formula of size ${bigIntRepr(r.resultingSizeOL)} (ratio ${BigDecimal(r.resultingSizeOL.toDouble)/BigDecimal(r.originalSize)}%1.5f )\n")
 
   }
 
@@ -97,12 +104,10 @@ object Benchmark {
         val r1 = value._1.reducedForm(f)
         val r2 = value._2.reducedForm(f)
         Result(f.circuitSize, r1.circuitSize, r2.circuitSize, f, r1, r2)
-        //Result(f.size, r1.size, r2.size, f, r1, r2)
       case None =>
         val r1 = OcbslAlgorithm.reducedForm(f)
         val r2 = OLAlgorithm.reducedForm(f)
         Result(f.circuitSize, r1.circuitSize, r2.circuitSize, f, r1, r2)
-        //Result(f.size, r1.size, r2.size, f, r1, r2)
   }
 
   /**
@@ -110,12 +115,24 @@ object Benchmark {
    * if check is true, verify that the reduced formulas are logically equivalent
    * (in propositional logic) to the original formula.
    */
-  def printRandomBenchmark(number:Int, size:Int, variables:Int, check:Boolean): Unit = {
+  def saveRandomBenchmark(number:Int, size:Int, variables:Int, check:Boolean, path:String): Unit = {
+    val fileObject = new File(path+"/results/random.txt" )
+    val printWriter = new PrintWriter(fileObject)
+
+    val date = SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(Date())
+    printWriter.write(s"Random Benchmark, $date\n")
+    printWriter.write(s"Parameters: $number formulas, size max $size, $variables different variables, check:$check\n")
+
     val rs = benchmark(number, size, variables)
     rs.foreach { r =>
-      if check then checkResult(r, variables)
-      sparsePrintResult(r)
+      if check then checkResult(r, variables, printWriter.write)
+      sparseSaveResult(r, printWriter.write)
     }
+    val ocbslMean = rs.map(r => BigDecimal(r.resultingSizeOCBSL.toDouble)/BigDecimal(r.originalSize)).sum/rs.size
+    val olMean = rs.map(r => BigDecimal(r.resultingSizeOL.toDouble)/BigDecimal(r.originalSize)).sum/rs.size
+    printWriter.write(s"Average OCBSL improvement: $ocbslMean")
+    printWriter.write(s"Average OL improvement: $olMean")
+    printWriter.close()
   }
 
   def benchmark(number: Int, size: Int, variables: Int): List[Result] = {
@@ -125,16 +142,6 @@ object Benchmark {
       val r1 = makeResult(r)
       r1 :: benchmark(number - 1, size, variables)
     }
-  }
-
-
-  def runWithTimeout[T](timeoutMs: Long)(f: => T) : Try[T] = {
-    val r =
-      try{Await.ready(Future(try{Success(f)} catch {case t:Throwable => Failure(t)}), timeoutMs.milliseconds).value}
-      catch {case e: Throwable => Some(Failure(e))}
-    r match
-      case Some(value) => value.flatten
-      case None => Failure(new TimeoutException)
   }
 
   //
