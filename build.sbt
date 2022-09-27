@@ -12,7 +12,7 @@ scalacOptions := Seq("-unchecked", "-deprecation")
 
 run / fork := true
 run / javaOptions ++= Seq(
-  "-Xss256M", // stack size
+  "-Xss512M", // stack size
   "-Xmx4G", // (max) heap size
 )
 

@@ -86,11 +86,12 @@ object Benchmark {
     else println(s"    ${Printer.prettyFull(r.originalFormula)}")
   }
 
-  def sparseSaveResult(r: Result, write:String => Unit): Unit = {
+  def sparseSaveResult(r: Result, write:String => Unit, ocbsl:Boolean = true, ol:Boolean = true): Unit = {
     write(s"Original formula of size ${bigIntRepr(r.originalSize)}\n")
-    write(f"    OCBSL formula of size ${bigIntRepr(r.resultingSizeOCBSL)}" +
+
+    if ocbsl then write(f"    OCBSL formula of size ${bigIntRepr(r.resultingSizeOCBSL)}" +
       f" (ratio ${BigDecimal(r.resultingSizeOCBSL)/BigDecimal(r.originalSize)}%1.5f )\n")
-    write(f"    OL    formula of size ${bigIntRepr(r.resultingSizeOL)} (ratio ${BigDecimal(r.resultingSizeOL.toDouble)/BigDecimal(r.originalSize)}%1.5f )\n")
+    if ol then write(f"    OL    formula of size ${bigIntRepr(r.resultingSizeOL)} (ratio ${BigDecimal(r.resultingSizeOL.toDouble)/BigDecimal(r.originalSize)}%1.5f )\n")
 
   }
 
@@ -98,16 +99,16 @@ object Benchmark {
   /**
    * Compute the circuit size of a formula and of its reduced forms
    */
-  def makeResult(f: Formula, algos:Option[(OcbslAlgorithm, OLAlgorithm)]=None): Result = {
-    algos match
-      case Some(value) =>
-        val r1 = value._1.reducedForm(f)
-        val r2 = value._2.reducedForm(f)
-        Result(f.circuitSize, r1.circuitSize, r2.circuitSize, f, r1, r2)
-      case None =>
-        val r1 = OcbslAlgorithm.reducedForm(f)
-        val r2 = OLAlgorithm.reducedForm(f)
-        Result(f.circuitSize, r1.circuitSize, r2.circuitSize, f, r1, r2)
+  def makeResult(f: Formula, ocbsl:Boolean, ol:Boolean, algos:Option[(OcbslAlgorithm, OLAlgorithm)]=None, circuit:Boolean = true): Result = {
+    val (a1: EquivalenceAndNormalFormAlgorithm, a2:EquivalenceAndNormalFormAlgorithm) = algos match
+      case Some(value) => (value._1, value._2)
+      case None => (OcbslAlgorithm, OLAlgorithm)
+    val r1 = if ocbsl then a1.reducedForm(f) else f
+    val r2 = if ol then a2.reducedForm(f) else f
+    if circuit then
+      Result(f.circuitSize, r1.circuitSize, r2.circuitSize, f, r1, r2)
+    else
+      Result(f.size, r1.size, r2.size, f, r1, r2)
   }
 
   /**
@@ -115,33 +116,44 @@ object Benchmark {
    * if check is true, verify that the reduced formulas are logically equivalent
    * (in propositional logic) to the original formula.
    */
-  def saveRandomBenchmark(number:Int, size:Int, variables:Int, check:Boolean, path:String): Unit = {
+  def saveRandomBenchmark(number:Int, size:Int, variables:Int, check:Boolean, path:String, ocbsl:Boolean=true, ol:Boolean= true): Unit = {
     val fileObject = new File(path+"/results/random.txt" )
     val printWriter = new PrintWriter(fileObject)
 
     val date = SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(Date())
     printWriter.write(s"Random Benchmark, $date\n")
-    printWriter.write(s"Parameters: $number formulas, size max $size, $variables different variables, check:$check\n")
+    printWriter.write(s"Parameters: $number formulas, size max $size, $variables different variables, check:$check, ocbsl:$ocbsl, ol:$ol\n")
 
+    var totgen:Long = 0
+    var toteval:Long = 0
 
     var rs:List[Result] = Nil
     (1 to number) foreach { _ =>
-      val r = benchmark(size, variables)
+      val (r, tgen, teval) = benchmark(size, variables, ocbsl, ol)
+      totgen+=tgen
+      toteval+=teval
       rs = r::rs
       if check then checkResult(r, variables, printWriter.write)
-      sparseSaveResult(r, printWriter.write)
+      sparseSaveResult(r, printWriter.write, ocbsl, ol)
       printWriter.flush()
     }
     val ocbslMean = rs.map(r => BigDecimal(r.resultingSizeOCBSL.toDouble)/BigDecimal(r.originalSize)).sum/rs.size
     val olMean = rs.map(r => BigDecimal(r.resultingSizeOL.toDouble)/BigDecimal(r.originalSize)).sum/rs.size
-    printWriter.write(s"Average OCBSL improvement: $ocbslMean")
-    printWriter.write(s"Average OL improvement: $olMean")
+    printWriter.write(s"Average OCBSL improvement: $ocbslMean\n")
+    printWriter.write(s"Average OL improvement: $olMean\n")
+    printWriter.write(s"Total timegenerating: ${totgen/1000000}ms, average time generating:${totgen/(1000000*number)} ms.\n")
+    printWriter.write(s"Total time: ${toteval/1000000}ms, average time:${toteval/(1000000*number)} ms.\n")
     printWriter.close()
   }
 
-  def benchmark(size: Int, variables: Int): Result = {
+  def benchmark(size: Int, variables: Int, ocbsl:Boolean, ol:Boolean): (Result, Long, Long) = {
+    val t0 = System.nanoTime()
     val r = randomFormula(size, variables)
-    makeResult(r)
+    val t1 = System.nanoTime()
+    val re = makeResult(r, ocbsl, ol, circuit = false)
+    val t2 = System.nanoTime()
+    (re, t1-t0, t2-t1)
+
   }
 
   //

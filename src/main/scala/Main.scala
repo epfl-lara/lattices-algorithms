@@ -11,22 +11,24 @@ object Main {
     val size: Int = positional(1).toInt
     val vars: Int = positional(2).toInt
     val check: Boolean = options.contains("-check")
+    val ocbsl: Boolean = !options.contains("-nocbsl")
+    val ol: Boolean = !options.contains("-nol")
 
     val folder = ((s:String) => if s.last == '/' then s else s+'/')(positional(3))
     val cases = positional(4).split(Array(' ', ','))
 
-    main(number, size, vars, check, folder, cases)
+    main(number, size, vars, check, folder, cases, ocbsl, ol)
 
 
   }
-  def main(number: Int, size: Int, vars: Int, check: Boolean, folder: String, cases: Array[String]): Unit = {
+  def main(number: Int, size: Int, vars: Int, check: Boolean, folder: String, cases: Array[String], ocbsl:Boolean=true, ol:Boolean=true): Unit = {
     if (number > 0) {
       /*
        * Produces random formulas and print their size and the size of their reduced form.
        * if check is true, verify that the reduced formulas are logically equivalent
        * (in propositional logic) to the original formula.
        */
-      saveRandomBenchmark(number, size, vars, check, folder)
+      saveRandomBenchmark(number, size, vars, check, folder, ocbsl, ol)
     }
     if (cases.nonEmpty){
       /**
