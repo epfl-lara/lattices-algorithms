@@ -8,6 +8,8 @@ lazy val root = (project in file("."))
     name := "lattices-algorithms",
     assembly / mainClass := Some ("Main"),
     assembly / assemblyJarName := "lattices.jar",
+    // https://mvnrepository.com/artifact/com.zaxxer/SparseBitSet
+    libraryDependencies += "com.zaxxer" % "SparseBitSet" % "1.2"
   )
 
 scalacOptions := Seq("-unchecked", "-deprecation")

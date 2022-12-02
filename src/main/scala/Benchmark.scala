@@ -89,8 +89,10 @@ object Benchmark {
   }
 
   case class Improvement(original:BigInt, reduced:BigInt, ratio:Double)
-  case class Result(originalSize: BigInt, resultingSizeOCBSL: BigInt, resultingSizeOL: BigInt, originalFormula: Formula, ocbslFormula: Formula, olFormula: Formula)
-
+  case class Result(originalSize: BigInt, resultingSizeOCBSL: BigInt, resultingSizeOL: BigInt, originalFormula: Formula, ocbslFormula: Formula, olFormula: Formula) {
+    def toSizeResult: SizeResult = SizeResult(originalSize, resultingSizeOCBSL, resultingSizeOL)
+  }
+  case class SizeResult(originalSize: BigInt, resultingSizeOCBSL: BigInt, resultingSizeOL: BigInt)
 
   def benchmarkOcbsl(formulas:List[Formula]) : Improvement = {
     val algo = new OcbslAlgorithm
@@ -158,12 +160,12 @@ object Benchmark {
     var totgen:Long = 0
     var toteval:Long = 0
 
-    var rs:List[Result] = Nil
+    var rs:List[SizeResult] = Nil
     (1 to number) foreach { _ =>
       val (r, tgen, teval) = benchmark(size, variables, ocbsl, ol)
       totgen+=tgen
       toteval+=teval
-      rs = r::rs
+      rs = r.toSizeResult :: rs
       if check then checkResult(r, variables, printWriter.write)
       sparseSaveResult(r, printWriter.write, ocbsl, ol)
       printWriter.flush()

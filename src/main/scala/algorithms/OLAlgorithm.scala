@@ -2,6 +2,7 @@ package algorithms
 
 import algorithms.Datastructures.*
 import algorithms.OLAlgorithm.*
+import com.zaxxer.sparsebits.SparseBitSet
 
 import scala.collection.mutable
 
@@ -10,8 +11,8 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
 
 
   def latticesLEQ(formula1: NormalPFormula, formula2: NormalPFormula): Boolean =
-
-    formula1.lessThan.get(formula2.uniqueKey) match
+    if formula1.uniqueKey == formula2.uniqueKey then true
+    else formula1.lessThanCached(formula2) match
       case Some(value) => value
       case None =>
         val r = (formula1, formula2) match
@@ -30,7 +31,7 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
             children.exists(c => latticesLEQ(c, v))
           case (NPAnd(children1, true), NPAnd(children2, false)) =>
             children1.exists(c => latticesLEQ(c, formula2)) || children2.exists(c => latticesLEQ(formula1, getInverse(c)))
-        formula1.lessThan.update(formula2.uniqueKey, r)
+        formula1.setLessThanCache(formula2, r)
         r
 
   def simplify(children:List[NormalPFormula], polarity:Boolean): NormalPFormula = {
@@ -152,8 +153,18 @@ object OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
     var formulaAIG: Option[Formula] = None
     override def toString: String = Printer.pretty(this)
     var inverse: Option[NormalPFormula] = None
-    val lessThan: mutable.HashMap[Int, Boolean] = mutable.HashMap(uniqueKey -> true)
 
+    private val lessThanBitSet: SparseBitSet = new SparseBitSet
+
+    def lessThanCached(other: NormalPFormula): Option[Boolean] =
+      val otherIx = 2 * other.uniqueKey
+      if lessThanBitSet.get(otherIx) then Some(lessThanBitSet.get(otherIx + 1))
+      else None
+
+    def setLessThanCache(other: NormalPFormula, value: Boolean): Unit =
+      val otherIx = 2 * other.uniqueKey
+      lessThanBitSet.set(otherIx)
+      if value then lessThanBitSet.set(otherIx + 1)
 
     override def equals(obj: Any): Boolean = obj match
       case f: NormalPFormula => eq(f)
