@@ -1,21 +1,22 @@
-
-ThisBuild / version := "0.1.0-SNAPSHOT"
+ThisBuild / version := "1.0"
+ThisBuild / organization := "ch.epfl.lara"
+ThisBuild / organizationName := "LARA"
 
 ThisBuild / scalaVersion := "3.7.1"
 
 lazy val root = (project in file("."))
   .settings(
-    name := "lattices-algorithms",
+    name := "orthologic",
     assembly / mainClass := Some ("Main"),
-    assembly / assemblyJarName := "lattices.jar",
+    assembly / assemblyJarName := "orthologic.jar",
     libraryDependencies += "com.zaxxer" % "SparseBitSet" % "1.2",
     libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.4.1",
   )
 
-scalacOptions := Seq("-unchecked", "-deprecation")
 scalacOptions ++= Seq(
-  "-language:implicitConversions",
-  "-language:experimental.modularity"
+  "-unchecked", 
+  "-deprecation",
+  "-language:implicitConversions"
 )
 
 run / fork := true

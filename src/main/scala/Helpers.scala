@@ -1,9 +1,9 @@
 
 package ortholattices
 import ortholattices.algorithms.*
-import Datastructures.*
 
 object Helpers {
+  export Datastructures.*
 
   def bot: Formula = Literal(false)
   def top: Formula = Literal(true)
@@ -41,9 +41,6 @@ object Helpers {
 
   given conv_false: Conversion[false, Formula] = _ => bot
   given conv_true: Conversion[true, Formula] = _ => top
-
-
-  def Variable(id:Int): Variable = new Variable(id)
 
   val x0 = Variable(0)
   val x1 = Variable(1)
