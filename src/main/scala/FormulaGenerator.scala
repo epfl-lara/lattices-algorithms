@@ -1,4 +1,5 @@
-import algorithms.Datastructures.*
+package ortholattices
+import ortholattices.algorithms.Datastructures.*
 
 import scala.util.Random
 

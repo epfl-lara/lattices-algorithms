@@ -1,5 +1,6 @@
+package ortholattices
 import java.io.{BufferedInputStream, FileInputStream}
-import algorithms.Datastructures.*
+import ortholattices.algorithms.Datastructures.*
 import scala.collection.mutable
 
 object AigerParser {

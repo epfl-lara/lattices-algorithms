@@ -1,6 +1,5 @@
-package algorithms
-
-import algorithms.Datastructures.*
+package ortholattices.algorithms
+import ortholattices.algorithms.Datastructures.*
 
 object Printer {
 
@@ -17,14 +16,14 @@ object Printer {
     case Neg(child) => s"neg(${prettyFull(child)})"
     case Or(children) => s"or(${children.map(prettyFull).mkString(", ")})"
     case And(children) => s"and(${children.map(prettyFull).mkString(", ")})"
-    case Literal(b) => if b then "T" else "F"
+    case Literal(b) => if b then "⊤" else "⊥"
 
   def pretty(f: Formula): String = o(s"${f.uniqueKey}") + (f match
     case Variable(id) => s"x$id"
     case Neg(child) => s"!${pretty(child)}"
     case Or(children) => s"or(${children.map(pretty).mkString(", ")})"
     case And(children) => s"and(${children.map(pretty).mkString(", ")})"
-    case Literal(b) => if b then "T" else "F"
+    case Literal(b) => if b then "⊤" else "⊥"
     )
 
   def pretty(f: OcbslAlgorithm.NormalFormula): String = o(s"${f.uniqueKey}") + (f match

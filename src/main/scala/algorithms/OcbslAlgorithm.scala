@@ -1,7 +1,7 @@
-package algorithms
+package ortholattices.algorithms
 
-import algorithms.Datastructures.*
-import algorithms.OcbslAlgorithm.*
+import Datastructures.*
+import OcbslAlgorithm.*
 
 import scala.collection.mutable
 import scala.math.Numeric.IntIsIntegral
@@ -208,7 +208,7 @@ object OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
     val code: Int = if (b) 1 else 0
   }
 
-  def toFormula(formula: NormalFormula):Formula = toFormulaAIG(formula)
+  def toFormula(formula: NormalFormula):Formula = toFormulaNNF(formula)
   /**
    * Puts back in regular formula syntax, and performs negation normal form to produce shorter version.
    */

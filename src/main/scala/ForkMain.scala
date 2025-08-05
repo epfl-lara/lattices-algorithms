@@ -1,5 +1,6 @@
-import algorithms.Datastructures.*
-import algorithms.{OLAlgorithm, OcbslAlgorithm, Printer}
+package ortholattices
+import ortholattices.algorithms.*
+import Datastructures.*
 import Benchmark.{Algo, Improvement}
 
 object ForkMain {

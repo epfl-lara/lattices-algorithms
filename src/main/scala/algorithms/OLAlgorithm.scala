@@ -1,7 +1,7 @@
-package algorithms
+package ortholattices.algorithms
 
-import algorithms.Datastructures.*
-import algorithms.OLAlgorithm.*
+import Datastructures.*
+import ortholattices.algorithms.OLAlgorithm.*
 import com.zaxxer.sparsebits.SparseBitSet
 
 import scala.collection.mutable
@@ -112,7 +112,7 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
     val a = nPnormalForm(formula1)
     val b = nPnormalForm(formula2)
     latticesLEQ(a, b) && latticesLEQ(b, a)
-  override def isSame(formula1: Formula, formula2: Formula): Boolean = false //checkEquivalence(polarize(formula1), polarize(formula2))
+  override def isSame(formula1: Formula, formula2: Formula): Boolean = checkEquivalence(polarize(formula1), polarize(formula2))
 
 
   override def reducedForm(formula: Formula): Formula =
@@ -214,7 +214,7 @@ object OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
     f.formulaAIG = Some(r)
     r
 
-  def toFormula(f:NormalPFormula): Formula = toFormulaAIG(f)
+  def toFormula(f:NormalPFormula): Formula = toFormulaNNF(f)
 
   //def checkEquivalence(formula1: PolarFormula, formula2: PolarFormula): Boolean = (new OLAlgorithm).checkEquivalence(formula1, formula2)
 

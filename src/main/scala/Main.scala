@@ -1,8 +1,8 @@
-import algorithms.Datastructures.*
+package ortholattices
+import ortholattices.algorithms.Datastructures.*
 import FormulaGenerator.*
 import Benchmark.*
 import FormulaGenerator.*
-import algorithms.Datastructures.*
 
 import scala.concurrent.duration.*
 
@@ -46,36 +46,6 @@ object Main {
     }
   }
 
-
-
-  val a = Variable(0)
-  val b = Variable(1)
-  val c = Variable(2)
-  val d = Variable(3)
-  val e = Variable(4)
-  val f = Variable(5)
-
-  val x0 = Variable(0)
-  val x1 = Variable(1)
-  val x2 = Variable(2)
-  val x3 = Variable(3)
-  val x4 = Variable(4)
-  val x5 = Variable(5)
-
-
-  def neg(f: Formula): Formula = Neg(f)
-
-  def and(args: List[Formula]): Formula = And(args)
-
-  def and(f:Formula*): Formula = And(f.toList)
-
-  def or(args: List[Formula]): Formula = Or(args)
-
-  def or(f:Formula*): Formula = Or(f.toList)
-
-  def iff(f: Formula, g: Formula): Formula = and(implies(f, g), implies(g, f))
-
-  def implies(f: Formula, g: Formula): Formula = neg(or(neg(f), g))
 
 
 }

@@ -1,7 +1,8 @@
-package algorithms
+package ortholattices.algorithms
 
-import algorithms.OLAlgorithm.PolarFormula
-import algorithms.OcbslAlgorithm.NoOrFormula
+import ortholattices.algorithms.OLAlgorithm.PolarFormula
+import ortholattices.algorithms.OcbslAlgorithm.NoOrFormula
+import ortholattices.algorithms.Printer
 
 import scala.collection.mutable
 
@@ -69,11 +70,7 @@ object Datastructures {
     def isSame(formula1: Formula, formula2: Formula): Boolean
     def reducedForm(formula: Formula): Formula
   }
-
-  def memoize[I, O](f: I => O): I => O = new mutable.HashMap[I, O]() {
-    override def apply(key: I): O = getOrElseUpdate(key, f(key))
-  }
-
+  
   def negationNormalForm(f: Formula, positive: Boolean = true): Formula = f match {
     case Variable(id) => if (positive) Variable(id) else Neg(Variable(id))
     case Neg(child) => negationNormalForm(child, !positive)

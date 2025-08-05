@@ -1,6 +1,7 @@
+package ortholattices
 import FormulaGenerator.*
-import algorithms.Datastructures.*
-import algorithms.{OLAlgorithm, OcbslAlgorithm, Printer}
+import ortholattices.algorithms.*
+import Datastructures.*
 
 import java.io.*
 import java.nio.file.{Files, Paths}
