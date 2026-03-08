@@ -254,6 +254,8 @@ object OcbslAlgorithm extends EquivalenceAndNormalFormAlgorithm {
         if positive then NoOrNeg(removeOr(f, false)) else NoOrAnd(children.map(c => removeOr(c, false)))
       case And(children) =>
         if positive then NoOrAnd(children.map(c => removeOr(c, true))) else NoOrNeg(removeOr(f, true))
+      case FunApplication(_, _) =>
+        throw new UnsupportedOperationException("Function symbols are not supported in the OCBSL algorithm")
       case Literal(b) => NoOrLiteral(b == positive)
     }
     if positive then f.noOrFormulaP = Some(r)

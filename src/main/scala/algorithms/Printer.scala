@@ -16,6 +16,7 @@ object Printer {
     case Neg(child) => s"neg(${prettyFull(child)})"
     case Or(children) => s"or(${children.map(prettyFull).mkString(", ")})"
     case And(children) => s"and(${children.map(prettyFull).mkString(", ")})"
+    case FunApplication(sym, args) => s"${sym.id}(${args.map(prettyFull).mkString(", ")})"
     case Literal(b) => if b then "⊤" else "⊥"
 
   def pretty(f: Formula): String = o(s"${f.uniqueKey}") + (f match
@@ -23,6 +24,7 @@ object Printer {
     case Neg(child) => s"!${pretty(child)}"
     case Or(children) => s"or(${children.map(pretty).mkString(", ")})"
     case And(children) => s"and(${children.map(pretty).mkString(", ")})"
+    case FunApplication(sym, args) => s"${sym.id}(${args.map(pretty).mkString(", ")})"
     case Literal(b) => if b then "⊤" else "⊥"
     )
 
@@ -45,6 +47,9 @@ object Printer {
     case OLAlgorithm.NPAnd(children, polarity) =>
       val inner = s"and(${children.map(pretty).mkString(", ")})"
       if polarity then inner else s"!$inner"
+    case OLAlgorithm.NPFunApplication(sym, args, polarity) =>
+      val inner = s"${sym.id}(${args.map(pretty).mkString(", ")})"
+      if polarity then inner else s"!$inner"
     case OLAlgorithm.NPLiteral(b) => if b then "T" else "F"
     )
 
@@ -52,6 +57,9 @@ object Printer {
     case OLAlgorithm.PolarVariable(id, polarity) => if polarity then s"x$id" else s"!x$id"
     case OLAlgorithm.PolarAnd(children, polarity) =>
       val inner = s"and(${children.map(pretty).mkString(", ")})"
+      if polarity then inner else s"!$inner"
+    case OLAlgorithm.PolarFunApplication(sym, args, polarity) =>
+      val inner = s"${sym.id}(${args.map(pretty).mkString(", ")})"
       if polarity then inner else s"!$inner"
     case OLAlgorithm.PolarLiteral(b) => if b then "T" else "F"
     )

@@ -7,10 +7,12 @@ ThisBuild / scalaVersion := "3.7.1"
 lazy val root = (project in file("."))
   .settings(
     name := "orthologic",
-    assembly / mainClass := Some ("Main"),
+    assembly / mainClass := Some ("ortholattices.ForkMain"),
     assembly / assemblyJarName := "orthologic.jar",
     libraryDependencies += "com.zaxxer" % "SparseBitSet" % "1.2",
     libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.4.1",
+    libraryDependencies += "org.scalameta" %% "munit" % "1.0.0" % Test,
+    Test / parallelExecution := false,
   )
 
 scalacOptions ++= Seq(

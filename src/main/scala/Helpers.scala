@@ -15,9 +15,19 @@ object Helpers {
   def iff(f: Formula, g: Formula): And = and(implies(f, g), implies(g, f))
   def implies(f: Formula, g: Formula): Formula = neg(or(neg(f), g))
 
+  def funApp(sym: FunSymbol, args: Formula*): FunApplication = FunApplication(sym, args.toList)
+  def covariantFun(label: String, args: Formula*): FunApplication =
+    FunApplication(FunSymbol(label, args.toList.map(_ => Variance.Covariant)), args.toList)
+  def contravariantFun(label: String, args: Formula*): FunApplication =
+    FunApplication(FunSymbol(label, args.toList.map(_ => Variance.Contravariant)), args.toList)
+  def invariantFun(label: String, args: Formula*): FunApplication =
+    FunApplication(FunSymbol(label, args.toList.map(_ => Variance.Invariant)), args.toList)
 
-  val OLAlgo = new OLAlgorithm
+
+  val OLAlgo = new OLAlgorithmStructural
+  val OldOLAlgo = new OLAlgorithm
   val OcbslAlgo = new OcbslAlgorithm
+  val EntailAlgo = EntailmentAlgorithm
 
   def ¬(f: Formula): Neg = Neg(f)
   extension (f: Formula) {

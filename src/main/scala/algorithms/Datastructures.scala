@@ -2,11 +2,19 @@ package ortholattices.algorithms
 
 import ortholattices.algorithms.OLAlgorithm.PolarFormula
 import ortholattices.algorithms.OcbslAlgorithm.NoOrFormula
+import ortholattices.algorithms.EntailmentAlgorithm.NNF
 import ortholattices.algorithms.Printer
 
 import scala.collection.mutable
 
 object Datastructures {
+
+  enum Variance:
+    case Covariant, Contravariant, Invariant
+    def flip: Variance = this match
+      case Covariant => Contravariant
+      case Contravariant => Covariant
+      case Invariant => Invariant
 
   var totalNumberFormula: Int = 0
 
@@ -18,7 +26,11 @@ object Datastructures {
     var noOrFormulaP: Option[NoOrFormula] = None
     var noOrFormulaN: Option[NoOrFormula] = None
 
-    var polarFormula: Option[PolarFormula] = None
+    var oldPolarFormula: Option[PolarFormula] = None
+    var algo2PolarFormula: Option[PolarFormula] = None
+
+    var nnfP: Option[NNF] = None
+    var nnfN: Option[NNF] = None
 
     lazy val circuitSize: BigInt = Datastructures.circuitSize(List(this))
 
@@ -29,6 +41,7 @@ object Datastructures {
       case Neg(child) => child.depth
       case Or(children) => 1 + children.map(_.depth).max
       case And(children) => 1 + children.map(_.depth).max
+      case FunApplication(_, args) => 1 + (if args.isEmpty then 0 else args.map(_.depth).max)
       case Literal(b) => 1
   }
 
@@ -58,11 +71,25 @@ object Datastructures {
     val size = 1
   }
 
+  /**
+   * A function symbol with a fixed identity and a fixed variance signature.
+   * Variances determine the arity and the monotonicity of each argument.
+   */
+  case class FunSymbol(id: String, variances: List[Variance] = Nil):
+    def arity: Int = variances.length
+
+  case class FunApplication(symbol: FunSymbol, args: List[Formula]) extends Formula {
+    require(args.length == symbol.arity,
+      s"Function symbol ${symbol.id} expects ${symbol.arity} args, got ${args.length}")
+    val size: BigInt = args.map(_.size).sum + 1
+  }
+
   def redo(f: Formula): Formula = f match
     case Variable(id) => Variable(id)
     case Neg(child) => Neg(redo(child))
     case Or(children) => Or(children map redo)
     case And(children) => And(children map redo)
+    case FunApplication(sym, args) => FunApplication(sym, args.map(redo))
     case Literal(b) => Literal(b)
 
 
@@ -76,6 +103,9 @@ object Datastructures {
     case Neg(child) => negationNormalForm(child, !positive)
     case Or(children) => if positive then Or(children.map(c => negationNormalForm(c))) else And(children.map(c => negationNormalForm(c, false)))
     case And(children) => if positive then And(children.map(c => negationNormalForm(c))) else Or(children.map(c => negationNormalForm(c, false)))
+    case FunApplication(sym, args) =>
+      val normalizedArgs = FunApplication(sym, args.map(a => negationNormalForm(a, true)))
+      if positive then normalizedArgs else Neg(normalizedArgs)
     case Literal(b) => Literal(positive == b)
   }
 
@@ -92,6 +122,7 @@ object Datastructures {
         case And(children) => children
         case c => List(c)
       })
+    case FunApplication(sym, args) => FunApplication(sym, args.map(flatten))
     case _ => f
 
 
@@ -108,12 +139,13 @@ object Datastructures {
           case Variable(id) => 1
           case Neg(child) => foldedSize(child)
           case Or(children) =>
-            //val fold = (children map (foldedSize)).foldLeft(-1:BigInt) { case (a, b) => (a + b+1) }
-            val fold = (children map (foldedSize)).sum + 1
+            val fold = (children map (foldedSize)).sum + (children.size - 1)
             fold
           case And(children) =>
-            //val fold = (children map (foldedSize)).foldLeft(-1:BigInt) { case (a, b) => (a + b+1) }
-            val fold = (children map (foldedSize)).sum + 1
+            val fold = (children map (foldedSize)).sum + (children.size - 1)
+            fold
+          case FunApplication(_, args) =>
+            val fold = (args map foldedSize).sum + 1
             fold
           case Literal(b) => 1
     }

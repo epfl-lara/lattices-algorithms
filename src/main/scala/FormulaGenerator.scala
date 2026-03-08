@@ -5,7 +5,7 @@ import scala.util.Random
 
 object FormulaGenerator {
 
-  def randomFormula(size: Int, n: Int, seed: Option[Int] = None): Formula = {
+  def randomFormula(size: Int, n: Int, seed: Option[Int] = None, doFlatten: Boolean = true): Formula = {
     val variables = List.range(0, n).map(i => Variable(i))
     val rg: Random = seed match
       case Some(value) => new Random(value)
@@ -21,7 +21,8 @@ object FormulaGenerator {
         val f = if rg.nextBoolean() then Or(List(i1, i2)) else And(List(i1, i2))
         f
     }
-    flatten(negationNormalForm(single(size)))
+    val nnf = negationNormalForm(single(size))
+    if doFlatten then flatten(nnf) else nnf
   }
 
 }

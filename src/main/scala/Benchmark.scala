@@ -19,6 +19,7 @@ object Benchmark {
   enum Algo {
     case OL
     case OCBSL
+    case STRUCTURAL
   }
 
   def epflAigerBenchmark(folder:String, timeout: Duration):Unit = {
@@ -40,7 +41,7 @@ object Benchmark {
       pw.write('\n')
     }
     // val start = LocalDateTime.now()
-    val proc = Process("java", Seq("-cp", jar, "ForkMain", s"${algo.toString.toLowerCase}", path)).run(logger)
+    val proc = Process("java", Seq("-Xss512M", "-Xmx4G", "-cp", jar, "ortholattices.ForkMain", s"${algo.toString.toLowerCase}", path)).run(logger)
     try {
       val exitCode = Await.result(Future(blocking(proc.exitValue())), timeout)
       if (exitCode != 0) {
@@ -65,10 +66,11 @@ object Benchmark {
     printWriter.write(s"Benchmark $name, $date\n")
     printWriter.flush()
     val formulas = AigerParser.getAigerFormulas(path)
-    printWriter.write(s"Original circuit of size ${bigIntRepr(formulas.map(_.circuitSize).sum)}\n")
+    printWriter.write(s"Original circuit of size ${bigIntRepr(circuitSize(formulas))}\n")
     printWriter.flush()
     fork(printWriter, Algo.OCBSL, path, timeout)
     fork(printWriter, Algo.OL, path, timeout)
+    fork(printWriter, Algo.STRUCTURAL, path, timeout)
     /*
     val rOcbsl = Try(benchmarkOcbsl(formulas))
     rOcbsl match
@@ -133,7 +135,7 @@ object Benchmark {
   /**
    * Compute the circuit size of a formula and of its reduced forms
    */
-  def makeResult(f: Formula, ocbsl:Boolean, ol:Boolean, algos:Option[(OcbslAlgorithm, OLAlgorithm)]=None, circuit:Boolean = true): Result = {
+  def makeResult(f: Formula, ocbsl:Boolean, ol:Boolean, algos:Option[(EquivalenceAndNormalFormAlgorithm, EquivalenceAndNormalFormAlgorithm)]=None, circuit:Boolean = true): Result = {
     val (a1: EquivalenceAndNormalFormAlgorithm, a2:EquivalenceAndNormalFormAlgorithm) = algos match
       case Some(value) => (value._1, value._2)
       case None => (OcbslAlgorithm, OLAlgorithm)
@@ -237,5 +239,6 @@ object Benchmark {
     case Neg(child) => !eval(child, assignment)
     case Or(children) => children.exists(eval(_, assignment))
     case And(children) => children.forall(eval(_, assignment))
+    case FunApplication(_, _) => throw new UnsupportedOperationException("Cannot evaluate function symbols")
     case Literal(b) => b
 }
