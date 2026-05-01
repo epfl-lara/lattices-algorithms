@@ -18,6 +18,15 @@ object ForkMain {
       Benchmark.epflAigerBenchmark(folder + "/", 5.minutes)
     case Array("epfl", folder, timeoutMin) =>
       Benchmark.epflAigerBenchmark(folder + "/", timeoutMin.toLong.minutes)
+    case Array("entail", path) =>
+      val formulas = AigerParser.getAigerFormulas(path)
+      val t0 = System.nanoTime()
+      var nValid = 0
+      formulas.foreach { f =>
+        if EntailmentAlgorithm.isEntailed(Literal(true), f) then nValid += 1
+      }
+      val elapsedMs = (System.nanoTime() - t0) / 1_000_000
+      println(s"RESULT ${formulas.length} $nValid $elapsedMs")
     case Array(algoStr, path) =>
       val algo = algoStr match {
         case "ocbsl" => Algo.OCBSL

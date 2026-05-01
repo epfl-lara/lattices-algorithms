@@ -22,29 +22,6 @@ import scala.collection.mutable
  */
 object EntailmentAlgorithm {
 
-  /** Aggregate stats accumulated across all prove() calls for one circuit. */
-  object Stats:
-    var sfSizeTotal    = 0
-    var atomsTotal     = 0
-    var seedSeqsTotal  = 0
-    var dequeuedTotal  = 0
-    var addCallsTotal  = 0
-    var addedTotal     = 0
-    var provenTotal    = 0
-    var callCount      = 0
-
-    def reset(): Unit =
-      sfSizeTotal = 0; atomsTotal = 0; seedSeqsTotal = 0
-      dequeuedTotal = 0; addCallsTotal = 0; addedTotal = 0
-      provenTotal = 0; callCount = 0
-
-    def printToStderr(): Unit =
-      System.err.println(
-        s"[stats] calls=$callCount  sf_total=$sfSizeTotal  atoms_total=$atomsTotal" +
-        s"  seed_seqs=$seedSeqsTotal  dequeued=$dequeuedTotal" +
-        s"  add_calls=$addCallsTotal  added=$addedTotal  proven=$provenTotal"
-      )
-
   // =========================================================================
   // NNF representation with cached inverses
   //
@@ -308,16 +285,9 @@ object EntailmentAlgorithm {
 
     @inline def provenIdx(a: NNF, b: NNF): Int = localId(a) * n + localId(b)
 
-    var localDequeued = 0
-    var localAddCalls = 0
-    var localAdded    = 0
-    var seedSeqs      = 0
-
     def addSequent(a: NNF, b: NNF): Unit =
-      localAddCalls += 1
       val idx = provenIdx(a, b)
       if !proven.get(idx) then
-        localAdded += 1
         proven.set(idx)
         proven.set(provenIdx(b, a))
         worklist.push((a, b))
@@ -358,19 +328,6 @@ object EntailmentAlgorithm {
       addSequent(bot.inverse, phi)
 
     // --- Congruence helper -------------------------------------------------
-    seedSeqs = worklist.size
-
-    def accumStats(): Unit =
-      Stats.sfSizeTotal   += subformulas.size
-      Stats.atomsTotal    += atoms.size
-      Stats.seedSeqsTotal += seedSeqs
-      Stats.dequeuedTotal += localDequeued
-      Stats.addCallsTotal += localAddCalls
-      Stats.addedTotal    += localAdded
-      Stats.provenTotal   += proven.cardinality() / 2
-      Stats.callCount     += 1
-
-    // --- Congruence helper -------------------------------------------------
     // A proven sequent (a, b) means a ∨ b = ⊤, so ¬a ≤ b  and  ¬b ≤ a.
     // For covariant  F at position i:  α ≤ β  ⟹  F[…α…] ≤ F[…β…]
     // For contravariant F:             α ≤ β  ⟹  F[…β…] ≤ F[…α…]
@@ -394,12 +351,10 @@ object EntailmentAlgorithm {
 
     // --- Main loop ---------------------------------------------------------
     while worklist.nonEmpty do
-      localDequeued += 1
       val (a, b) = worklist.pop()
 
       // Goal check — identity comparison is correct since NNF uses reference equality
       if (a.nnfId == goal._1.nnfId && b.nnfId == goal._2.nnfId) || (a.nnfId == goal._2.nnfId && b.nnfId == goal._1.nnfId) then
-        accumStats()
         return true
 
       // --- Update P_Cut: (a,b) proven ⟹ ¬a ≤ b and ¬b ≤ a ---
@@ -434,7 +389,6 @@ object EntailmentAlgorithm {
       applyCongruence(a, b)
     end while
 
-    accumStats()
     false // goal not reached
   end prove
 }
