@@ -3,12 +3,16 @@
 Scala library implementing algorithms for the word problem and normalization problem of Ortholattices and Orthocomplemented Bisemilattices.
 
 ## Paper
-
+Contains results and developments from the following papers:
 **Formula Normalizations in Verification**  
 Simon Guilloud (EPFL), Mario Bucev (EPFL), Dragana Milovancevic (EPFL), Viktor Kunčak (EPFL)  
 CAV 2023 - 35th International Conference on Computer Aided Verification, Paris, July 2023
 
-The complete paper artifact (C/OCaml/Scala implementations, benchmarks, scripts, experimental results) is archived separately.
+**Orthologic in Satisfiability Checking**  
+Simon Guilloud (EPFL), Vladislas de Haldat du Lys (EPFL), Viktor Kunčak (EPFL)  
+PoS 2026 - 17th Pragmatics of SAT international workshop, Lisbon, July 2026
+
+The complete paper artifacts are archived separately.
 
 ## Installation
 
