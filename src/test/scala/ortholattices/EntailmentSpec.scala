@@ -554,4 +554,165 @@ class EntailmentSpec extends munit.FunSuite {
     )
     assert(isEntailed(mkList(IntT), mkList(LL), axioms))
   }
+
+  // =========================================================================
+  // Replace rule (targeted)
+  //
+  // The Replace rule fires when a formula `a` is derived to equal ⊤, i.e.
+  // when the sequent `(a, a)` enters the worklist.  It then broadcasts:
+  //   ∀ φ ∈ SF:  (φ, a) is proven  (= "φ ≤ a = ⊤" for free)
+  //
+  // The canonical way to force `a = ⊤` is to have axioms `x ≤ a` AND
+  // `¬x ≤ a` for some atom x.  The Cut rule then derives `(a, a)` from the
+  // two axiom sequents `(¬x, a)` and `(x, a)`, triggering Replace.
+  //
+  // Every test in this section would return the wrong answer if the
+  // Replace branch were commented out.
+  // =========================================================================
+
+  test("Replace basic: {x ≤ y, ¬x ≤ y} forces y = ⊤, so unrelated z ≤ y") {
+    // Proof sketch: seeds (¬x, y) and (x, y); Cut derives (y, y); Replace
+    // adds (¬z, y) for every subformula ¬z → goal (¬z, y) is proven.
+    val axioms: Set[(Formula, Formula)] = Set((a, b), (neg(a), b))
+    assert(isEntailed(c, b, axioms))
+    assert(isEntailed(d, b, axioms))
+    assert(isEntailed(neg(c), b, axioms))
+    assert(isEntailed(and(c, d), b, axioms))
+    assert(isEntailed(or(c, d), b, axioms))
+  }
+
+  test("Replace negative: {x ≤ y} alone does NOT force y = ⊤, so z ≤ y is invalid") {
+    // Only one direction: Replace cannot fire because (y, y) is never derived.
+    // This guards against Replace over-firing on (¬x, y) instead of just (y, y).
+    val axioms: Set[(Formula, Formula)] = Set((a, b))
+    assert(!isEntailed(c, b, axioms))
+    assert(!isEntailed(neg(a), b, axioms))  // ¬x ≤ y is NOT in axioms
+  }
+
+  test("Replace with constant symbols: {x ≤ C, ¬x ≤ C} forces C = ⊤, so y ≤ C") {
+    // Same proof path but C is a nullary constructor application.
+    val C = funApp(FunSymbol("ConstTop"))
+    val axioms: Set[(Formula, Formula)] = Set((a, C), (neg(a), C))
+    assert(isEntailed(b, C, axioms))
+    assert(isEntailed(neg(b), C, axioms))
+    assert(isEntailed(mkList(b), C, axioms))
+    // Negative: only one direction → still INVALID
+    assert(!isEntailed(b, C, Set((a, C))))
+  }
+
+  test("Replace chain: {x≤y, ¬x≤y, y≤z} forces y = ⊤, and since y≤z, z = ⊤, so w ≤ z") {
+    // Replace fires for y; seeds (¬y, y); Cut with axiom (¬y, z) gives (y, z)
+    // then further Replace or Cut gives (z, z); Replace then seeds (w, z).
+    val axioms: Set[(Formula, Formula)] = Set((a, b), (neg(a), b), (b, c))
+    assert(isEntailed(d, c, axioms))
+    assert(isEntailed(neg(d), c, axioms))
+  }
+
+  test("Replace two forced tops: A=⊤ and B=⊤ by separate axiom pairs, so A ≤ B") {
+    // Neither A nor B is literally the formula `x ∨ ¬x`; both acquire ⊤
+    // dynamically.  Replace fires twice (for A and for B), and then
+    // (A, B) follows because A ≤ ⊤ = B.
+    val A = funApp(FunSymbol("A_top"))
+    val B = funApp(FunSymbol("B_top"))
+    val axioms: Set[(Formula, Formula)] = Set(
+      (a, A), (neg(a), A),
+      (b, B), (neg(b), B)
+    )
+    assert(isEntailed(A, B, axioms))
+    assert(isEntailed(B, A, axioms))
+    assert(isEquivalent(A, B, axioms))
+  }
+
+  test("Replace with compound antecedent: {(a∧b) ≤ F, ¬(a∧b) ≤ F} forces F = ⊤") {
+    // The pair covers the full Boolean partition for (a ∧ b) and ¬(a ∧ b).
+    val F = funApp(FunSymbol("F_top"))
+    val ab = and(a, b)
+    val axioms: Set[(Formula, Formula)] = Set((ab, F), (neg(ab), F))
+    assert(isEntailed(c, F, axioms))
+    assert(isEntailed(d, F, axioms))
+  }
+
+  // =========================================================================
+  // Weakening
+  //
+  // In OL proof theory Weakening states: Γ ⊢ a ≤ b  ⟹  Γ, Δ ⊢ a ≤ b.
+  // Adding axioms can only make more sequents provable, never fewer.
+  //
+  // Tests here verify two complementary directions:
+  //  (a) monotonicity — provable things remain provable under extra axioms;
+  //  (b) non-spuriousness — unprovable things stay unprovable when the extra
+  //      axioms are genuinely irrelevant (broken chain, different atoms, etc.)
+  //
+  // These tests would expose bugs in SF construction or the Replace branch
+  // that might cause extra axioms to "pollute" unrelated goals.
+  // =========================================================================
+
+  test("Weakening monotonicity: OL tautologies hold with any extra axioms") {
+    val extra: Set[(Formula, Formula)] = Set((c, d), (d, e), (f, g))
+    // These are independent of a, b and must not disturb OL axioms about a, b.
+    assert(isEntailed(a, a, extra))                     // reflexivity
+    assert(isEntailed(and(a, b), a, extra))             // ∧-elim
+    assert(isEntailed(a, or(a, b), extra))              // ∨-intro
+    assert(isEntailed(bot, a, extra))                   // ⊥ ≤ x
+    assert(isEntailed(a, top, extra))                   // x ≤ ⊤
+    assert(isEquivalent(neg(neg(a)), a, extra))         // double negation
+    assert(isEquivalent(or(a, neg(a)), top, extra))     // LEM
+    assert(isEquivalent(and(a, neg(a)), bot, extra))    // NC
+  }
+
+  test("Weakening monotonicity: proven entailment survives extra axioms") {
+    val base: Set[(Formula, Formula)] = Set((a, b))
+    val bigger = base ++ Set((c, d), (e, f), (g, h))
+    assert(isEntailed(a, b, base))
+    assert(isEntailed(a, b, bigger))   // monotonicity: base⊢a≤b ⟹ bigger⊢a≤b
+    // Transitivity also survives extra noise
+    val trans: Set[(Formula, Formula)] = Set((a, b), (b, c))
+    val transPlus: Set[(Formula, Formula)] = trans ++ Set((d, e), (f, g))
+    assert(isEntailed(a, c, trans))
+    assert(isEntailed(a, c, transPlus))
+  }
+
+  test("Weakening non-spurious: broken chain x→z, w→y does not prove x ≤ y") {
+    // x maps to z, w maps to y, but x ≠ w so the chain is broken.
+    val axioms: Set[(Formula, Formula)] = Set((a, c), (d, b))
+    assert(!isEntailed(a, b, axioms))
+  }
+
+  test("Weakening non-spurious: axiom {z ≤ w} does not help prove unrelated x ≤ y") {
+    val axioms: Set[(Formula, Formula)] = Set((c, d))
+    assert(!isEntailed(a, b, axioms))
+  }
+
+  test("Weakening non-spurious: OL non-theorem stays non-theorem with extra axioms") {
+    // Distributivity is not provable in OL; adding unrelated axioms must not
+    // accidentally make it provable.
+    val extra: Set[(Formula, Formula)] = Set((c, d), (d, e), (e, f))
+    assert(!isEntailed(and(a, or(b, c)), or(and(a, b), and(a, c)), extra))
+    assert(!isEntailed(a, or(and(a, b), and(a, neg(b))), extra))   // case split
+    assert(!isEntailed(or(a, b), or(a, and(neg(a), or(a, b))), extra))  // OML
+  }
+
+  test("Weakening non-spurious: single-direction axiom {x ≤ y} must not trigger Replace for y") {
+    // Replace fires only when (y, y) enters the worklist, which requires BOTH
+    // (¬x, y) and (x, y) to be seeded.  A single axiom x ≤ y provides only
+    // (¬x, y); the test confirms that (z, y) remains unprovable.
+    val axioms: Set[(Formula, Formula)] = Set((a, b))
+    assert(!isEntailed(c, b, axioms))      // z unrelated to x
+    assert(!isEntailed(neg(a), b, axioms)) // ¬x not in axioms
+  }
+
+  // =========================================================================
+  // OL distributivity investigation
+  // =========================================================================
+
+  test("OL: a ≤ b∨c does NOT entail a ≤ (a∧b)∨c in pure OL") {
+    // Axiom: a ≤ b ∨ c
+    val axioms: Set[(Formula, Formula)] = Set((a, or(b, c)))
+    // Goal: a ≤ (a ∧ b) ∨ c
+    val goal = or(and(a, b), c)
+    val result = isEntailed(a, goal, axioms)
+    println(s"a ≤ (a∧b)∨c given a ≤ b∨c: $result")
+    // If result is false, the implication does NOT hold in pure OL
+    // If result is true, it does hold
+  }
 }

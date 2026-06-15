@@ -2,6 +2,7 @@ package ortholattices.algorithms
 
 import Datastructures.*
 
+import com.zaxxer.sparsebits.SparseBitSet
 import scala.collection.mutable
 
 /**
@@ -50,6 +51,39 @@ object EntailmentAlgorithm {
     override def hashCode(): Int = nnfId
     override def equals(other: Any): Boolean = this eq other.asInstanceOf[AnyRef]
 
+    // Per-node cache of proven sequent pairs.
+    // Bit `other.nnfId` is set iff the sequent (this, other) was proven in a previous
+    // prove() call with the same axiom context (identified by contextKey reference).
+    // A key mismatch triggers a lazy clear — no global node iteration needed.
+    // _provenWithList keeps NNF references so seeding in the next call is O(|cached|)
+    // rather than O(n²): we only iterate actually-proven partners, not all n² pairs.
+    private val _provenWith: SparseBitSet = new SparseBitSet()
+    private var _provenWithKey: AnyRef = null
+    private var _provenWithList: java.util.ArrayList[NNF] = null
+
+    /** True iff (this, other) was cached for axiom context `key`. */
+    final def isProvenWith(other: NNF, key: AnyRef): Boolean =
+      (_provenWithKey eq key) && _provenWith.get(other.nnfId)
+
+    /** Record (this, other) as proven; lazily clears stale entries on context change. */
+    final def setProvenWith(other: NNF, key: AnyRef): Unit =
+      if !(_provenWithKey eq key) then
+        _provenWith.clear()
+        if _provenWithList != null then _provenWithList.clear()
+        _provenWithKey = key
+      if !_provenWith.get(other.nnfId) then   // avoid duplicate list entries
+        _provenWith.set(other.nnfId)
+        if _provenWithList == null then _provenWithList = new java.util.ArrayList[NNF]()
+        _provenWithList.add(other)
+
+    /** Iterate proven-with partners for context `key` that are also in `sf`; call `f` on each. */
+    final def foreachProvenWith(key: AnyRef, sf: mutable.HashSet[NNF], f: NNF => Unit): Unit =
+      if (_provenWithKey eq key) && _provenWithList != null then
+        val it = _provenWithList.iterator()
+        while it.hasNext do
+          val b = it.next()
+          if sf.contains(b) then f(b)
+
   /** Positive variable atom. */
   case class NNFVar(id: Int) extends NNF:
     protected def computeInverse(): NNF = NNFNot(this)
@@ -57,6 +91,41 @@ object EntailmentAlgorithm {
   /** Constructor application atom: F(φ₁, …, φₙ). Arguments are in NNF. */
   case class NNFApp(sym: FunSymbol, args: List[NNF]) extends NNF:
     protected def computeInverse(): NNF = NNFNot(this)
+
+  // -------------------------------------------------------------------------
+  // Hash-cons caches for ATOMS ONLY (NNFVar, NNFApp).
+  //
+  // The algorithm uses object identity for NNF equality (hashCode = nnfId,
+  // equals = `this eq that`) for O(1) hash/bitset operations.
+  //
+  // Atoms MUST be hash-consed for completeness: the same Variable(id) (or
+  // FunApplication) appearing in two different Formula objects would otherwise
+  // produce two distinct NNFVar/NNFApp nodes, which the algorithm treats as
+  // unrelated atoms — making it unable to relate `f` to `OLnorm(f)` even
+  // though they are OL-equivalent by definition.
+  //
+  // Compound nodes (NNFOr, NNFAnd, NNFNot) are intentionally NOT hash-consed:
+  //  - The And/Or rules of the worklist algorithm derive entailments between
+  //    structurally identical compounds via their shared atomic children, so
+  //    correctness/completeness does not require compound identity.
+  //  - Adding a ConcurrentHashMap lookup + Tuple2 allocation per construction
+  //    measurably slows the algorithm on large SF (heavy random-circuit
+  //    sweeps regress past the test timeout).
+  //  - A persistent global cache for compounds would also leak memory across
+  //    long-running benchmarks (unbounded SF growth).
+  //
+  // Conclusion: identity is used as an EFFICIENCY mechanism (fast hashing,
+  // cheap proven-set membership) but completeness only relies on identity
+  // for ATOMS, which the structural rules cannot otherwise unify.
+  // -------------------------------------------------------------------------
+  private val varCache = new java.util.concurrent.ConcurrentHashMap[Int, NNFVar]()
+  private val appCache = new java.util.concurrent.ConcurrentHashMap[(FunSymbol, List[NNF]), NNFApp]()
+
+  private def mkVar(id: Int): NNFVar =
+    varCache.computeIfAbsent(id, k => NNFVar(k))
+
+  private def mkApp(sym: FunSymbol, args: List[NNF]): NNFApp =
+    appCache.computeIfAbsent((sym, args), k => NNFApp(k._1, k._2))
 
   /** Negated atom (only variables and constructor applications can be negated). */
   case class NNFNot(atom: NNF) extends NNF:
@@ -75,7 +144,7 @@ object EntailmentAlgorithm {
   // =========================================================================
 
   /** Dummy variable used to encode ⊤ = d ∨ ¬d and ⊥ = d ∧ ¬d. */
-  private val dummyVar = NNFVar(Int.MinValue)
+  private val dummyVar = mkVar(Int.MinValue)
 
   /** Convert a Formula to NNF (positive context). Memoized on Formula.nnfP. */
   def toNNF(f: Formula): NNF =
@@ -83,13 +152,13 @@ object EntailmentAlgorithm {
       case Some(cached) => return cached
       case None => ()
     val r: NNF = f match
-      case Variable(id)              => NNFVar(id)
+      case Variable(id)              => mkVar(id)
       case Neg(child)                => toNNFNeg(child)
       case Or(children) if children.nonEmpty =>
         children.map(toNNF).reduceRight(NNFOr(_, _))
       case And(children) if children.nonEmpty =>
         children.map(toNNF).reduceRight(NNFAnd(_, _))
-      case FunApplication(sym, args) => NNFApp(sym, args.map(toNNF))
+      case FunApplication(sym, args) => mkApp(sym, args.map(toNNF))
       case Literal(true)             => NNFOr(dummyVar, dummyVar.inverse)
       case Literal(false)            => NNFAnd(dummyVar, dummyVar.inverse)
       case Or(_)                     => NNFAnd(dummyVar, dummyVar.inverse)  // empty Or = ⊥
@@ -103,14 +172,13 @@ object EntailmentAlgorithm {
       case Some(cached) => return cached
       case None => ()
     val r: NNF = f match
-      case Variable(id)              => NNFNot(NNFVar(id))
+      case Variable(id)              => toNNF(f).inverse                   // reuse memoized NNFVar + its cached inverse
       case Neg(child)                => toNNF(child)                       // ¬¬a = a
       case Or(children) if children.nonEmpty =>
         children.map(toNNFNeg).reduceRight(NNFAnd(_, _))                   // ¬(a∨b) = ¬a ∧ ¬b
       case And(children) if children.nonEmpty =>
         children.map(toNNFNeg).reduceRight(NNFOr(_, _))                    // ¬(a∧b) = ¬a ∨ ¬b
-      case FunApplication(sym, args) =>
-        NNFNot(NNFApp(sym, args.map(toNNF)))                               // ¬F(a) stays as ¬F(a)
+      case FunApplication(sym, args) => toNNF(f).inverse                   // reuse memoized NNFApp + cached inverse
       case Literal(true)             => NNFAnd(dummyVar, dummyVar.inverse) // ¬⊤ = ⊥
       case Literal(false)            => NNFOr(dummyVar, dummyVar.inverse)  // ¬⊥ = ⊤
       case Or(_)                     => NNFOr(dummyVar, dummyVar.inverse)  // ¬⊥ = ⊤
@@ -131,7 +199,6 @@ object EntailmentAlgorithm {
       case NNFApp(_, args) => args.foreach(collectSubformulas(_, acc))
       case _               => () // NNFVar — leaf
 
-  /** Legacy wrapper used by generateIntermediateTerms. */
   private def subformulasOf(t: NNF): Set[NNF] =
     val acc = mutable.HashSet[NNF]()
     collectSubformulas(t, acc)
@@ -176,7 +243,10 @@ object EntailmentAlgorithm {
       case term @ NNFApp(sym, args) =>
         args.zipWithIndex.foreach { case (arg, pos) =>
           val variance = sym.variances(pos)
-          index.getOrElseUpdate(arg, mutable.Set.empty) += ConPos(term, pos, variance)
+          val cp = ConPos(term, pos, variance)
+          index.get(arg) match
+            case Some(s) => s += cp
+            case None    => index(arg) = mutable.Set(cp)
         }
       case _ => ()
     }
@@ -188,7 +258,10 @@ object EntailmentAlgorithm {
     subformulas.foreach {
       case term @ NNFApp(sym, args) =>
         args.zipWithIndex.foreach { case (arg, pos) =>
-          lookup.getOrElseUpdate((sym, pos, arg), mutable.Set.empty) += term
+          val key = (sym, pos, arg)
+          lookup.get(key) match
+            case Some(s) => s += term
+            case None    => lookup(key) = mutable.Set(term)
         }
       case _ => ()
     }
@@ -216,7 +289,7 @@ object EntailmentAlgorithm {
           else argsByPos(pos).toList.flatMap(arg => generateCombinations(pos + 1, arg :: acc))
 
         for args <- generateCombinations(0, Nil) do
-          val term = NNFApp(sym, args)
+          val term = mkApp(sym, args)
           if !subformulas.contains(term) then
             subformulas += term
             subformulas ++= subformulasOf(term.inverse)
@@ -224,6 +297,9 @@ object EntailmentAlgorithm {
   // =========================================================================
   // Public API
   // =========================================================================
+
+  /** Stats returned by [[entailWithStats]]. */
+  case class ProveStats(proved: Boolean, nProven: Long, nFormulas: Int)
 
   /**
    * Check whether f1 ≤ f2 in orthologic (with function symbols).
@@ -237,7 +313,7 @@ object EntailmentAlgorithm {
     val axiomSequents = axioms.map { case (sub, sup) =>
       (toNNF(sub).inverse, toNNF(sup))
     }
-    prove((left, right), axiomSequents)
+    prove((left, right), axiomSequents, contextKey = axioms, computeAll = false).proved
 
   /**
    * Check whether f1 = f2 in orthologic: f1 ≤ f2 and f2 ≤ f1.
@@ -245,11 +321,25 @@ object EntailmentAlgorithm {
   def isEquivalent(f1: Formula, f2: Formula, axioms: Set[(Formula, Formula)] = Set.empty): Boolean =
     isEntailed(f1, f2, axioms) && isEntailed(f2, f1, axioms)
 
+  /**
+   * Like [[isEntailed]] but always drains the full worklist (no early exit),
+   * and additionally returns the number of unique sequents proven and the
+   * size of the formula space.  Use this for consistency comparisons between
+   * the Scala and C implementations.
+   */
+  def entailWithStats(f1: Formula, f2: Formula, axioms: Set[(Formula, Formula)] = Set.empty, computeAll: Boolean = true): ProveStats =
+    val left  = toNNF(f1).inverse
+    val right = toNNF(f2)
+    val axiomSequents = axioms.map { case (sub, sup) =>
+      (toNNF(sub).inverse, toNNF(sup))
+    }
+    prove((left, right), axiomSequents, contextKey = axioms, computeAll = computeAll)
+
   // =========================================================================
   // Core worklist algorithm
   // =========================================================================
 
-  private def prove(goal: (NNF, NNF), axioms: Set[(NNF, NNF)]): Boolean =
+  private def prove(goal: (NNF, NNF), axioms: Set[(NNF, NNF)], contextKey: AnyRef, computeAll: Boolean = false): ProveStats =
     // --- Collect all subformulas (goal + axioms + inverses) using mutable accumulation ---
     val subformulas = mutable.HashSet[NNF]()
     collectSubformulas(goal._1, subformulas)
@@ -275,22 +365,54 @@ object EntailmentAlgorithm {
     // This lets us use a flat BitSet for proven — no boxing, O(1), cache-friendly.
     val localIdMap = mutable.HashMap[NNF, Int]()
     var localIdCtr = 0
-    def localId(n: NNF): Int = localIdMap.getOrElseUpdate(n, { val i = localIdCtr; localIdCtr += 1; i })
+    def localId(n: NNF): Int =
+      localIdMap.get(n) match
+        case Some(i) => i
+        case None    => val i = localIdCtr; localIdCtr += 1; localIdMap(n) = i; i
     subformulas.foreach { f => localId(f); localId(f.inverse) }
     val n = localIdCtr
 
     // --- Proven set: flat BitSet keyed by (localId(a)*n + localId(b)) —-- no boxing ---
-    val proven   = new java.util.BitSet(n * n)
+    // Fall back to HashSet[Long] when n² would overflow Int.
+    val provenSizeLong = n.toLong * n
+    val useBitSet = provenSizeLong <= Int.MaxValue
+    val proven    = if useBitSet then new java.util.BitSet(provenSizeLong.toInt) else null
+    val provenHS  = if useBitSet then null else new java.util.HashSet[Long]()
     val worklist = mutable.Stack[(NNF, NNF)]()
+    var nPushed  = 0L
 
-    @inline def provenIdx(a: NNF, b: NNF): Int = localId(a) * n + localId(b)
+    @inline def provenIdxL(a: NNF, b: NNF): Long = localId(a).toLong * n + localId(b)
+    @inline def provenIdx(a: NNF, b: NNF): Int    = localId(a) * n + localId(b)
+
+    @inline def isProven(a: NNF, b: NNF): Boolean =
+      if useBitSet then proven.get(provenIdx(a, b))
+      else provenHS.contains(provenIdxL(a, b))
+
+    @inline def setProven(a: NNF, b: NNF): Unit =
+      if useBitSet then proven.set(provenIdx(a, b))
+      else provenHS.add(provenIdxL(a, b))
 
     def addSequent(a: NNF, b: NNF): Unit =
-      val idx = provenIdx(a, b)
-      if !proven.get(idx) then
-        proven.set(idx)
-        proven.set(provenIdx(b, a))
+      if !isProven(a, b) then
+        setProven(a, b)
+        setProven(b, a)
+        a.setProvenWith(b, contextKey)
+        b.setProvenWith(a, contextKey)
+        nPushed += 1
         worklist.push((a, b))
+
+    // --- Pre-seed worklist from per-NNF proven cache (mirrors normalization algorithm) ---
+    // Sequents proven in earlier calls on shared NNF nodes (same axiom context/generation)
+    // are re-injected so the worklist converges without re-deriving them.  The seeding is
+    // O(Σ_a |provenWith(a) ∩ subformulas|) — only actual proven pairs, not all n² pairs.
+    // Skipped in computeAll mode to keep nProven / nFormulas stats reproducible.
+    if !computeAll then
+      subformulas.foreach { a => a.foreachProvenWith(contextKey, subformulas, b => addSequent(a, b)) }
+      // Fast path: if the goal pair was already cached and re-seeded above, we're done —
+      // no need to process any worklist entries.  This makes the common case (outputs that
+      // share most subformulas with earlier outputs) essentially O(n) per call.
+      if isProven(goal._1, goal._2) || isProven(goal._2, goal._1) then
+        return ProveStats(proved = true, nProven = nPushed, nFormulas = n)
 
     // --- Index structures ---
     // pCut(x) = {d | x ≤ d proven},  pAnd(b)(ψ) = {φ | φ = a∧ψ and (a,b) proven}
@@ -303,11 +425,11 @@ object EntailmentAlgorithm {
     // --- Initialise SF_∨ and SF_∧ ---
     subformulas.foreach {
       case phi @ NNFAnd(phi1, phi2) =>
-        sfAnd.getOrElseUpdate(phi1, mutable.Set.empty) += ((phi2, phi))
-        sfAnd.getOrElseUpdate(phi2, mutable.Set.empty) += ((phi1, phi))
+        val e1 = (phi2, phi); sfAnd.get(phi1) match { case Some(s) => s += e1; case None => sfAnd(phi1) = mutable.Set(e1) }
+        val e2 = (phi1, phi); sfAnd.get(phi2) match { case Some(s) => s += e2; case None => sfAnd(phi2) = mutable.Set(e2) }
       case phi @ NNFOr(phi1, phi2) =>
-        sfOr.getOrElseUpdate(phi1, mutable.Set.empty) += phi
-        sfOr.getOrElseUpdate(phi2, mutable.Set.empty) += phi
+        sfOr.get(phi1) match { case Some(s) => s += phi; case None => sfOr(phi1) = mutable.Set(phi) }
+        sfOr.get(phi2) match { case Some(s) => s += phi; case None => sfOr(phi2) = mutable.Set(phi) }
       case _ => ()
     }
 
@@ -353,22 +475,32 @@ object EntailmentAlgorithm {
     while worklist.nonEmpty do
       val (a, b) = worklist.pop()
 
-      // Goal check — identity comparison is correct since NNF uses reference equality
-      if (a.nnfId == goal._1.nnfId && b.nnfId == goal._2.nnfId) || (a.nnfId == goal._2.nnfId && b.nnfId == goal._1.nnfId) then
-        return true
+      // Goal check — skip when computeAll, otherwise return immediately
+      if !computeAll &&
+         ((a.nnfId == goal._1.nnfId && b.nnfId == goal._2.nnfId) ||
+          (a.nnfId == goal._2.nnfId && b.nnfId == goal._1.nnfId)) then
+        return ProveStats(proved = true, nProven = nPushed, nFormulas = n)
 
       // --- Update P_Cut: (a,b) proven ⟹ ¬a ≤ b and ¬b ≤ a ---
-      pCut.getOrElseUpdate(a.inverse, mutable.Set.empty) += b
-      pCut.getOrElseUpdate(b.inverse, mutable.Set.empty) += a
+      val ai = a.inverse
+      pCut.get(ai) match { case Some(s) => s += b; case None => pCut(ai) = mutable.Set(b) }
+      val bi = b.inverse
+      pCut.get(bi) match { case Some(s) => s += a; case None => pCut(bi) = mutable.Set(a) }
 
       // --- Update P_And ---
       sfAnd.getOrElse(a, mutable.Set.empty).foreach { case (psi, conjunction) =>
-        pAnd.getOrElseUpdate(b, mutable.Map.empty)
-            .getOrElseUpdate(psi, mutable.Set.empty) += conjunction
+        pAnd.get(b) match
+          case Some(inner) =>
+            inner.get(psi) match { case Some(s) => s += conjunction; case None => inner(psi) = mutable.Set(conjunction) }
+          case None =>
+            pAnd(b) = mutable.Map(psi -> mutable.Set(conjunction))
       }
       sfAnd.getOrElse(b, mutable.Set.empty).foreach { case (psi, conjunction) =>
-        pAnd.getOrElseUpdate(a, mutable.Map.empty)
-            .getOrElseUpdate(psi, mutable.Set.empty) += conjunction
+        pAnd.get(a) match
+          case Some(inner) =>
+            inner.get(psi) match { case Some(s) => s += conjunction; case None => inner(psi) = mutable.Set(conjunction) }
+          case None =>
+            pAnd(a) = mutable.Map(psi -> mutable.Set(conjunction))
       }
 
       // --- Deduce new sequents (φ, b) — iterate each source directly, no set union ---
@@ -389,6 +521,10 @@ object EntailmentAlgorithm {
       applyCongruence(a, b)
     end while
 
-    false // goal not reached
+    // Worklist drained — check whether goal was proven
+    val goalProved =
+      proven.get(provenIdx(goal._1, goal._2)) ||
+      proven.get(provenIdx(goal._2, goal._1))
+    ProveStats(proved = goalProved, nProven = nPushed, nFormulas = n)
   end prove
 }

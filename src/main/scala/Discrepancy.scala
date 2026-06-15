@@ -19,8 +19,8 @@ object Discrepancy {
 
   def hasDiscrepancy(f: Formula): Boolean = {
     val a2Size  = circuitSize(List(new OLAlgorithmStructural().reducedForm(f)))
-    val oldSize = circuitSize(List(new OLAlgorithm().reducedForm(f)))
-    a2Size != oldSize
+    val baseSize = circuitSize(List(new OLAlgorithm().reducedForm(f)))
+    a2Size != baseSize
   }
 
   def formulaSize(f: Formula): Int = f match
@@ -81,16 +81,16 @@ object Discrepancy {
     for (size <- 5 to 50; seed <- 0 until 500) {
       val formula  = FormulaGenerator.randomFormula(size, 3, Some(seed), doFlatten = false)
       val a2Algo   = new OLAlgorithmStructural
-      val oldAlgo  = new OLAlgorithm
+      val baseAlgo  = new OLAlgorithm
       val a2Reduced  = a2Algo .reducedForm(formula)
-      val oldReduced = oldAlgo.reducedForm(formula)
+      val baseReduced = baseAlgo.reducedForm(formula)
       val a2Size   = circuitSize(List(a2Reduced))
-      val oldSize  = circuitSize(List(oldReduced))
-      if a2Size != oldSize then
+      val baseSize  = circuitSize(List(baseReduced))
+      if a2Size != baseSize then
         println(s"=== DISCREPANCY at size=$size seed=$seed ===")
         println(s"  input:      $formula")
         println(s"  a2Reduced:  $a2Reduced  (circuitSize=$a2Size)")
-        println(s"  oldReduced: $oldReduced  (circuitSize=$oldSize)")
+        println(s"  baseReduced: $baseReduced  (circuitSize=$baseSize)")
         println()
     }
   }
@@ -103,11 +103,11 @@ object Discrepancy {
     println(s"  $formula")
 
     val a2Algo  = new OLAlgorithmStructural
-    val oldAlgo = new OLAlgorithm
+    val baseAlgo = new OLAlgorithm
     val a2r  = a2Algo .reducedForm(formula)
-    val oldr = oldAlgo.reducedForm(formula)
+    val baser = baseAlgo.reducedForm(formula)
     println(s"  a2  circuitSize=${circuitSize(List(a2r))}: $a2r")
-    println(s"  old circuitSize=${circuitSize(List(oldr))}: $oldr")
+    println(s"  base circuitSize=${circuitSize(List(baser))}: $baser")
     println()
     println("Minimizing...")
 
@@ -117,11 +117,11 @@ object Discrepancy {
     println(s"  $minimal")
 
     val a2Algo2  = new OLAlgorithmStructural
-    val oldAlgo2 = new OLAlgorithm
+    val baseAlgo2 = new OLAlgorithm
     val a2r2  = a2Algo2 .reducedForm(minimal)
-    val oldr2 = oldAlgo2.reducedForm(minimal)
+    val baser2 = baseAlgo2.reducedForm(minimal)
     println(s"  a2  reduced: $a2r2  (circuitSize=${circuitSize(List(a2r2))})")
-    println(s"  old reduced: $oldr2  (circuitSize=${circuitSize(List(oldr2))})")
+    println(s"  base reduced: $baser2  (circuitSize=${circuitSize(List(baser2))})")
   }
 
   /** Trace both algorithms step-by-step on a specific formula. */
@@ -142,19 +142,19 @@ object Discrepancy {
     println()
 
     println("=== OLD ALGORITHM ===")
-    val oldAlgo = new OLAlgorithm
-    val pOld    = oldAlgo.oldPolarize(f)
+    val baseAlgo = new OLAlgorithm
+    val pOld    = baseAlgo.basePolarize(f)
     println(s"Polarized:   $pOld")
-    val nfOld   = oldAlgo.nPnormalForm(pOld)
+    val nfOld   = baseAlgo.nPnormalForm(pOld)
     println(s"Normal form: $nfOld")
     val rOld    = toFormula(nfOld)
     println(s"Reduced:     $rOld  circuitSize=${circuitSize(List(rOld))}")
     println()
 
     println("=== EQUIVALENCE CHECK ===")
-    println(s"a2  ≡ old:   ${OLAlgorithm.isSame(rA2, rOld)}")
+    println(s"a2  ≡ base:   ${OLAlgorithm.isSame(rA2, rOld)}")
     println(s"a2  ≡ input: ${OLAlgorithm.isSame(rA2, f)}")
-    println(s"old ≡ input: ${OLAlgorithm.isSame(rOld, f)}")
+    println(s"base ≡ input: ${OLAlgorithm.isSame(rOld, f)}")
   }
 
   def main(args: Array[String]): Unit =

@@ -27,6 +27,7 @@ object Datastructures {
     var noOrFormulaN: Option[NoOrFormula] = None
 
     var oldPolarFormula: Option[PolarFormula] = None
+    var basePolarFormula: Option[PolarFormula] = None
     var algo2PolarFormula: Option[PolarFormula] = None
 
     var nnfP: Option[NNF] = None
@@ -109,21 +110,26 @@ object Datastructures {
     case Literal(b) => Literal(positive == b)
   }
 
-  def flatten(f: Formula): Formula = f match
-    case Or(children) =>
-      val nc: List[Formula] = children map flatten
-      Or(nc.flatMap {
-        case Or(children) => children
-        case c => List(c)
-      })
-    case And(children) =>
-      val nc: List[Formula] = children map flatten
-      And(nc.flatMap {
-        case And(children) => children
-        case c => List(c)
-      })
-    case FunApplication(sym, args) => FunApplication(sym, args.map(flatten))
-    case _ => f
+  def flatten(f: Formula): Formula =
+    val memo = new java.util.IdentityHashMap[Formula, Formula]()
+    def go(f: Formula): Formula =
+      val cached = memo.get(f)
+      if cached != null then return cached
+      val result: Formula = f match
+        case Or(children) =>
+          val nc = children map go
+          Or(nc.flatMap { case Or(cs) => cs; case c => List(c) })
+        case And(children) =>
+          val nc = children map go
+          And(nc.flatMap { case And(cs) => cs; case c => List(c) })
+        case Neg(child) =>
+          val fc = go(child)
+          if fc eq child then f else Neg(fc)
+        case FunApplication(sym, args) => FunApplication(sym, args.map(go))
+        case _ => f
+      memo.put(f, result)
+      result
+    go(f)
 
 
   def circuitSize(fs: List[Formula]): BigInt = {

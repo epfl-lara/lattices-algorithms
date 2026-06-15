@@ -13,7 +13,7 @@ object Helpers {
   def or(args: List[Formula]): Or = Or(args)
   def or(f:Formula*): Or = Or(f.toList)
   def iff(f: Formula, g: Formula): And = and(implies(f, g), implies(g, f))
-  def implies(f: Formula, g: Formula): Formula = neg(or(neg(f), g))
+  def implies(f: Formula, g: Formula): Formula = or(neg(f), g)
 
   def funApp(sym: FunSymbol, args: Formula*): FunApplication = FunApplication(sym, args.toList)
   def covariantFun(label: String, args: Formula*): FunApplication =

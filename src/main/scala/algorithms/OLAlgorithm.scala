@@ -10,8 +10,10 @@ object OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
     val uniqueKey:Int = totPolarFormula
     val size: Int
     var algo2PolarInverse: Option[PolarFormula] = None
+    var basePolarInverse: Option[PolarFormula] = None
     var oldPolarInverse: Option[PolarFormula] = None
     var algo2PolarNormalForm: Option[NormalPFormula] = None
+    var basePolarNormalForm: Option[NormalPFormula] = None
     var oldPolarNormalForm: Option[NormalPFormula] = None
     override def toString: String = Printer.pretty(this)
     totPolarFormula += 1
@@ -40,6 +42,7 @@ object OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
     var inverse: Option[NormalPFormula] = None
 
     private val lessThanBitSetA2:  SparseBitSet = new SparseBitSet
+    private val lessThanBitSetBase: SparseBitSet = new SparseBitSet
     private val lessThanBitSetOld: SparseBitSet = new SparseBitSet
 
     def a2LessThanCached(other: NormalPFormula): Option[Boolean] =
@@ -51,6 +54,16 @@ object OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
       val otherIx = 2 * other.uniqueKey
       lessThanBitSetA2.set(otherIx)
       if value then lessThanBitSetA2.set(otherIx + 1)
+
+    def baseLessThanCached(other: NormalPFormula): Option[Boolean] =
+      val otherIx = 2 * other.uniqueKey
+      if lessThanBitSetBase.get(otherIx) then Some(lessThanBitSetBase.get(otherIx + 1))
+      else None
+
+    def baseSetLessThanCache(other: NormalPFormula, value: Boolean): Unit =
+      val otherIx = 2 * other.uniqueKey
+      lessThanBitSetBase.set(otherIx)
+      if value then lessThanBitSetBase.set(otherIx + 1)
 
     def oldLessThanCached(other: NormalPFormula): Option[Boolean] =
       val otherIx = 2 * other.uniqueKey
@@ -118,9 +131,9 @@ object OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
 
   def toFormula(f:NormalPFormula): Formula = toFormulaNNF(f)
 
-  override def isSame(formula1: Formula, formula2: Formula): Boolean = (new OLAlgorithmStructural).isSame(formula1, formula2)
+  override def isSame(formula1: Formula, formula2: Formula): Boolean = (new OLAlgorithm).isSame(formula1, formula2)
 
-  override def reducedForm(formula: Formula): Formula = (new OLAlgorithmStructural).reducedForm(formula)
+  override def reducedForm(formula: Formula): Formula = (new OLAlgorithm).reducedForm(formula)
 
   def getInverse(f: NormalPFormula): NormalPFormula = {
     f.inverse match
@@ -139,7 +152,7 @@ object OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
 }
 
 /**
- * Old version of the OL normalization algorithm that flattens same-polarity
+ * Base version of the OL normalization algorithm that flattens same-polarity
  * NPAnd children into flat lists. Kept for efficiency comparison with the
  * new tree-preserving OLAlgorithm.
  */
@@ -150,7 +163,7 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   // OLAlgorithm's PolarFormula objects never share inverse state with other
   // algorithm variants.
   private def getInversePolar(f: PolarFormula): PolarFormula =
-    f.oldPolarInverse match
+    f.basePolarInverse match
       case Some(value) => value
       case None =>
         val second = f match
@@ -158,8 +171,8 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
           case PolarAnd(children, polarity)             => PolarAnd(children, !polarity)
           case PolarFunApplication(sym, args, polarity) => PolarFunApplication(sym, args, !polarity)
           case PolarLiteral(b)                          => PolarLiteral(!b)
-        f.oldPolarInverse = Some(second)
-        second.oldPolarInverse = Some(f)
+        f.basePolarInverse = Some(second)
+        second.basePolarInverse = Some(f)
         second
 
   var leqCount: Long = 0
@@ -167,7 +180,7 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   def latticesLEQ(formula1: NormalPFormula, formula2: NormalPFormula): Boolean =
     leqCount += 1
     if formula1.uniqueKey == formula2.uniqueKey then true
-    else formula1.oldLessThanCached(formula2) match
+    else formula1.baseLessThanCached(formula2) match
       case Some(value) => value
       case None =>
         val r = (formula1, formula2) match
@@ -195,7 +208,7 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
           case (NPAnd(children1, true), NPAnd(children2, false)) =>
             children1.exists(c => latticesLEQ(c, formula2)) || children2.exists(c => latticesLEQ(formula1, getInverse(c)))
           case _ => false
-        formula1.oldSetLessThanCache(formula2, r)
+        formula1.baseSetLessThanCache(formula2, r)
         r
 
   def simplify(children: List[NormalPFormula], polarity: Boolean): NormalPFormula = {
@@ -253,7 +266,7 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
   }
 
   def nPnormalForm(formula: PolarFormula): NormalPFormula = {
-    formula.oldPolarNormalForm match
+    formula.basePolarNormalForm match
       case Some(value) =>
         value
       case None =>
@@ -273,7 +286,7 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
               case disj: NPAnd if checkForContradiction(disj) => NPLiteral(!polarity)
               case _ => simp
           case PolarLiteral(b) => NPLiteral(b)
-        formula.oldPolarNormalForm = Some(r)
+        formula.basePolarNormalForm = Some(r)
         r
   }
 
@@ -282,45 +295,45 @@ class OLAlgorithm extends EquivalenceAndNormalFormAlgorithm {
     val b = nPnormalForm(formula2)
     latticesLEQ(a, b) && latticesLEQ(b, a)
 
-  /** Polarize using the old algorithm's own cache field on Formula.
+  /** Polarize using the base algorithm's own cache field on Formula.
    *  Flattens same-polarity PolarAnd children so that simplify always
    *  sees flat conjunction lists regardless of input nesting. */
-  def oldPolarize(f: Formula, polarity: Boolean = true): PolarFormula = {
-    if polarity & f.oldPolarFormula.isDefined then return f.oldPolarFormula.get
-    if !polarity & f.oldPolarFormula.isDefined then return getInversePolar(f.oldPolarFormula.get)
+  def basePolarize(f: Formula, polarity: Boolean = true): PolarFormula = {
+    if polarity & f.basePolarFormula.isDefined then return f.basePolarFormula.get
+    if !polarity & f.basePolarFormula.isDefined then return getInversePolar(f.basePolarFormula.get)
     val r = f match {
       case Variable(id) => PolarVariable(id, polarity)
-      case Neg(child) => oldPolarize(child, !polarity)
+      case Neg(child) => basePolarize(child, !polarity)
       case Or(children) =>
-        val polarized = children.map(oldPolarize(_, false))
+        val polarized = children.map(basePolarize(_, false))
         val flat = polarized.flatMap {
           case PolarAnd(ch, true) => ch
           case other => List(other)
         }
         PolarAnd(flat, !polarity)
       case And(children) =>
-        val polarized = children.map(oldPolarize(_, true))
+        val polarized = children.map(basePolarize(_, true))
         val flat = polarized.flatMap {
           case PolarAnd(ch, true) => ch
           case other => List(other)
         }
         PolarAnd(flat, polarity)
-      case FunApplication(sym, args) => PolarFunApplication(sym, args.map(oldPolarize(_, true)), polarity)
+      case FunApplication(sym, args) => PolarFunApplication(sym, args.map(basePolarize(_, true)), polarity)
       case Literal(b) => PolarLiteral(b == polarity)
     }
-    if polarity then f.oldPolarFormula = Some(r)
-    else f.oldPolarFormula = Some(getInversePolar(r))
+    if polarity then f.basePolarFormula = Some(r)
+    else f.basePolarFormula = Some(getInversePolar(r))
     r
   }
 
   override def isSame(formula1: Formula, formula2: Formula): Boolean =
-    checkEquivalence(oldPolarize(formula1), oldPolarize(formula2))
+    checkEquivalence(basePolarize(formula1), basePolarize(formula2))
 
   def isOLSmaller(formula1: Formula, formula2: Formula): Boolean =
-    latticesLEQ(nPnormalForm(oldPolarize(formula1)), nPnormalForm(oldPolarize(formula2)))
+    latticesLEQ(nPnormalForm(basePolarize(formula1)), nPnormalForm(basePolarize(formula2)))
 
   override def reducedForm(formula: Formula): Formula =
-    val p = oldPolarize(formula)
+    val p = basePolarize(formula)
     val nf = nPnormalForm(p)
     val res = toFormula(nf)
     res
